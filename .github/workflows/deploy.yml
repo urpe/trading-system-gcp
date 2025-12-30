@@ -1,0 +1,44 @@
+name: Continuous Deployment to Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  PROJECT_ID: mi-proyecto-trading-12345
+  REGION: us-central1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Google Auth
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v2'
+
+    - name: 'Deploy Data Ingestor'
+      run: |
+        gcloud run deploy data-ingestor --source ./data_ingestor --region ${{ env.REGION }} --quiet --allow-unauthenticated
+
+    - name: 'Deploy Strategy Agent'
+      run: |
+        gcloud run deploy strategy-agent --source ./strategy_agent --region ${{ env.REGION }} --quiet --allow-unauthenticated
+
+    - name: 'Deploy Order Agent'
+      run: |
+        gcloud run deploy order-agent --source ./order_agent --region ${{ env.REGION }} --quiet --allow-unauthenticated
+
+    - name: 'Deploy Dashboard'
+      run: |
+        gcloud run deploy dashboard --source ./dashboard --region ${{ env.REGION }} --quiet --allow-unauthenticated
+
+    - name: 'Deploy Alert Service'
+      run: |
+        gcloud run deploy alert-service --source ./alert_service --region ${{ env.REGION }} --quiet --allow-unauthenticated
