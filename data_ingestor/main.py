@@ -1,70 +1,56 @@
-import asyncio
-import json
-import os
-import logging
-import threading
-import websockets
-from flask import Flask
+#!/usr/bin/env python3
+import os, json, logging, asyncio, websockets, threading
+from datetime import datetime
+from flask import Flask, jsonify
 from google.cloud import pubsub_v1
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
-PROJECT_ID = os.environ.get('PROJECT_ID', 'default-project')
-TOPIC_ID = os.environ.get('TOPIC_ID', 'default-topic')
-TRADING_PAIR = os.environ.get('TRADING_PAIR', 'btcusdt')
-
-BINANCE_WEBSOCKET_URI = f"wss://stream.binance.com:9443/ws/{TRADING_PAIR}@trade"
+PROJECT_ID = os.environ.get('PROJECT_ID', 'mi-proyecto-trading-12345')
+TOPIC_ID = os.environ.get('TOPIC_ID', 'datos-crudos')
+TRADING_PAIR = os.environ.get('TRADING_PAIR', 'btcusdt').lower()
 
 publisher = pubsub_v1.PublisherClient()
 topic_path = publisher.topic_path(PROJECT_ID, TOPIC_ID)
 
-async def binance_ws_client():
-    logging.info(f"Iniciando cliente WebSocket para {TRADING_PAIR}...")
+async def binance_ingestor():
+    uri = f"wss://stream.binance.com:9443/ws/{TRADING_PAIR}@ticker"
+    logger.info(f"Iniciando ingesta para {TRADING_PAIR.upper()}")
     while True:
         try:
-            async with websockets.connect(BINANCE_WEBSOCKET_URI) as websocket:
-                logging.info(f"Conectado a {BINANCE_WEBSOCKET_URI}")
+            async with websockets.connect(uri) as websocket:
+                logger.info(f"Conectado a Binance para {TRADING_PAIR.upper()}")
                 while True:
-                    try:
-                        message_str = await websocket.recv()
-                        message_json = json.loads(message_str)
-                        trade_data = {
-                            "event_type": message_json.get("e"),
-                            "event_time": message_json.get("E"),
-                            "symbol": message_json.get("s"),
-                            "trade_id": message_json.get("t"),
-                            "price": message_json.get("p"),
-                            "quantity": message_json.get("q"),
-                            "trade_time": message_json.get("T"),
-                            "is_buyer_maker": message_json.get("m"),
-                        }
-                        data_to_publish = json.dumps(trade_data).encode('utf-8')
-                        future = publisher.publish(topic_path, data_to_publish)
-                        future.result()
-                        logging.info(f"Publicado: Precio de {trade_data['symbol']} es {trade_data['price']}")
-                    except websockets.exceptions.ConnectionClosed:
-                        logging.warning("Conexion cerrada. Reconectando...")
-                        break
-                    except Exception as e:
-                        logging.error(f"Error procesando mensaje: {e}")
+                    message = await websocket.recv()
+                    data = json.loads(message)
+                    payload = {
+                        "symbol": data['s'],
+                        "price": float(data['c']),
+                        "high": float(data['h']),
+                        "low": float(data['l']),
+                        "volume": float(data['v']),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    data_str = json.dumps(payload).encode("utf-8")
+                    publisher.publish(topic_path, data_str)
         except Exception as e:
-            logging.error(f"Error en conexion WebSocket: {e}. Reintentando en 5 segundos...")
+            logger.error(f"Error: {e}")
             await asyncio.sleep(5)
 
-def run_ws_client():
-    loop = asyncio.new_event_loop()
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy", "pair": TRADING_PAIR.upper()}), 200
+
+def start_background_loop(loop):
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(binance_ws_client())
-
-@app.route('/')
-def index():
-    return f"Agente de Ingesta para {TRADING_PAIR} activo.", 200
-
-# Iniciar el cliente WebSocket en un hilo separado al cargar el modulo
-ws_thread = threading.Thread(target=run_ws_client, daemon=True)
-ws_thread.start()
+    loop.run_until_complete(binance_ingestor())
 
 if __name__ == "__main__":
+    new_loop = asyncio.new_event_loop()
+    t = threading.Thread(target=start_background_loop, args=(new_loop,))
+    t.daemon = True
+    t.start()
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)

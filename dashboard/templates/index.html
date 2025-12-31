@@ -3,213 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Bot Dashboard v1.0</title>
-    <meta http-equiv="refresh" content="30">
+    <title>Trading Bot Dashboard v2.0</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
-            --bg-dark: #0d1117;
-            --bg-card: #161b22;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --accent-green: #3fb950;
-            --accent-red: #f85149;
-            --accent-blue: #58a6ff;
-            --border-color: #30363d;
-        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background-color: var(--bg-dark );
-            color: var(--text-primary);
-            line-height: 1.6;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #c9d1d9; }
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 20px 0; border-bottom: 1px solid var(--border-color); margin-bottom: 30px;
-        }
-        header h1 { font-size: 1.8rem; }
-        header h1 span { color: var(--accent-blue); }
-        .status-badge {
-            background-color: #238636; color: white;
-            padding: 5px 12px; border-radius: 20px; font-size: 0.85rem;
-        }
-        .metrics-grid {
-            display: grid; grid-template-columns: repeat(6, 1fr);
-            gap: 15px; margin-bottom: 25px;
-        }
-        @media (max-width: 1200px) { .metrics-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 768px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
-        .metric-card {
-            background-color: var(--bg-card); border: 1px solid var(--border-color);
-            border-radius: 8px; padding: 20px; text-align: center;
-        }
-        .metric-icon { font-size: 1.5rem; margin-bottom: 8px; }
-        .metric-value { font-size: 1.8rem; font-weight: 700; font-family: monospace; }
-        .metric-value.positive { color: var(--accent-green); }
-        .metric-value.negative { color: var(--accent-red); }
-        .metric-value.neutral { color: var(--accent-blue); }
-        .metric-label { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; }
-        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px; margin-bottom: 25px; }
-        .grid-full { grid-template-columns: 1fr; }
-        @media (max-width: 1024px) { .grid { grid-template-columns: 1fr; } }
-        .card {
-            background-color: var(--bg-card); border: 1px solid var(--border-color);
-            border-radius: 8px; overflow: hidden;
-        }
-        .card-header {
-            padding: 15px 20px; border-bottom: 1px solid var(--border-color);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .card-header h2 { font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
-        .card-count {
-            background-color: var(--bg-dark); color: var(--text-secondary);
-            padding: 2px 8px; border-radius: 10px; font-size: 0.75rem;
-        }
-        .card-body { padding: 0; max-height: 300px; overflow-y: auto; }
-        .card-body-chart { padding: 20px; height: 280px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 20px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        th { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; background-color: var(--bg-card); }
-        tr:hover { background-color: rgba(88, 166, 255, 0.05); }
-        .badge { padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
-        .badge-buy { background-color: rgba(35, 134, 54, 0.2); color: var(--accent-green); }
-        .badge-sell { background-color: rgba(218, 54, 51, 0.2); color: var(--accent-red); }
-        .badge-success { background-color: rgba(35, 134, 54, 0.2); color: var(--accent-green); }
-        .empty-state { padding: 60px 40px; text-align: center; color: var(--text-secondary); }
-        .empty-state .icon { font-size: 3rem; margin-bottom: 15px; opacity: 0.5; }
-        .price { font-family: monospace; font-weight: 500; }
-        .symbol { font-weight: 600; color: var(--accent-blue); }
-        .reason { color: var(--text-secondary); font-size: 0.9rem; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        footer { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 0.85rem; margin-top: 30px; border-top: 1px solid var(--border-color); }
-        footer a { color: var(--accent-blue); text-decoration: none; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #30363d; padding-bottom: 20px; }
+        h1 { font-size: 2.5em; color: #58a6ff; }
+        .status { background: #238636; padding: 8px 16px; border-radius: 6px; font-weight: bold; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #30363d; }
+        .tab-btn { padding: 12px 20px; background: #161b22; border: none; color: #8b949e; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; }
+        .tab-btn.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+        .tab-btn:hover { color: #79c0ff; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr )); gap: 15px; margin-bottom: 30px; }
+        .metric-card { background: #161b22; border: 1px solid #30363d; padding: 20px; border-radius: 8px; text-align: center; }
+        .metric-value { font-size: 2em; font-weight: bold; color: #58a6ff; margin: 10px 0; }
+        .metric-label { color: #8b949e; font-size: 0.9em; }
+        
+        .chart-container { background: #161b22; border: 1px solid #30363d; padding: 20px; border-radius: 8px; margin-bottom: 30px; position: relative; height: 400px; }
+        
+        table { width: 100%; border-collapse: collapse; background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+        th { background: #0d1117; padding: 12px; text-align: left; color: #8b949e; font-weight: 600; border-bottom: 1px solid #30363d; }
+        td { padding: 12px; border-bottom: 1px solid #30363d; }
+        tr:hover { background: #0d1117; }
+        
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600; }
+        .badge-buy { background: #238636; color: white; }
+        .badge-sell { background: #da3633; color: white; }
+        .badge-success { background: #238636; color: white; }
+        .badge-failed { background: #da3633; color: white; }
+        
+        footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #30363d; color: #8b949e; font-size: 0.9em; }
+        
+        .empty-state { text-align: center; padding: 40px; color: #8b949e; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><span>Trading Bot</span> Dashboard</h1>
-            <span class="status-badge">Sistema Activo</span>
+            <h1>🤖 Trading Bot Dashboard v2.0</h1>
+            <div class="status">Sistema Activo</div>
         </header>
-
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-icon">📊</div>
-                <div class="metric-value neutral">{{ metrics.total_signals }}</div>
-                <div class="metric-label">Total Señales</div>
+        
+        <!-- RESUMEN GLOBAL -->
+        <div id="global-tab" class="tab-content active">
+            <h2 style="margin-bottom: 20px;">📊 Resumen Global</h2>
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-label">Total Señales</div>
+                    <div class="metric-value">{{ global_metrics.total_signals }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Compras (BUY)</div>
+                    <div class="metric-value" style="color: #3fb950;">{{ global_metrics.buy_count }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Ventas (SELL)</div>
+                    <div class="metric-value" style="color: #f85149;">{{ global_metrics.sell_count }}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Win Rate</div>
+                    <div class="metric-value">{{ global_metrics.win_rate }}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Órdenes Exitosas</div>
+                    <div class="metric-value">{{ global_metrics.successful_orders }}/{{ global_metrics.total_orders }}</div>
+                </div>
             </div>
-            <div class="metric-card">
-                <div class="metric-icon">🟢</div>
-                <div class="metric-value positive">{{ metrics.buy_count }}</div>
-                <div class="metric-label">Compras (BUY)</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">🔴</div>
-                <div class="metric-value negative">{{ metrics.sell_count }}</div>
-                <div class="metric-label">Ventas (SELL)</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">✅</div>
-                <div class="metric-value {% if metrics.win_rate >= 50 %}positive{% else %}negative{% endif %}">{{ metrics.win_rate }}%</div>
-                <div class="metric-label">Win Rate</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">📈</div>
-                <div class="metric-value {% if metrics.pnl_percentage >= 0 %}positive{% else %}negative{% endif %}">{% if metrics.pnl_percentage >= 0 %}+{% endif %}{{ metrics.pnl_percentage }}%</div>
-                <div class="metric-label">P&L Simulado</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-icon">💰</div>
-                <div class="metric-value neutral">{{ metrics.total_volume }}</div>
-                <div class="metric-label">Volumen Total</div>
-            </div>
+            
+            <h3 style="margin-bottom: 15px;">📈 Resumen por Moneda</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Moneda</th>
+                        <th>Señales</th>
+                        <th>Compras</th>
+                        <th>Ventas</th>
+                        <th>Órdenes</th>
+                        <th>Exitosas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for symbol, metrics in global_metrics.by_symbol.items() %}
+                    <tr>
+                        <td><strong>{{ symbol }}</strong></td>
+                        <td>{{ metrics.total_signals }}</td>
+                        <td><span class="badge badge-buy">{{ metrics.buy_count }}</span></td>
+                        <td><span class="badge badge-sell">{{ metrics.sell_count }}</span></td>
+                        <td>{{ metrics.total_orders }}</td>
+                        <td><span class="badge badge-success">{{ metrics.successful_orders }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-
-        <div class="grid grid-full">
-            <div class="card">
-                <div class="card-header">
-                    <h2><span class="icon">📈</span> Historial de Precios - BTCUSDT</h2>
-                </div>
-                <div class="card-body-chart">
-                    <canvas id="priceChart"></canvas>
-                </div>
-            </div>
+        
+        <!-- PESTAÑAS POR MONEDA -->
+        <div class="tabs" id="symbol-tabs">
+            <button class="tab-btn active" onclick="switchTab('global-tab', this)">📊 Resumen Global</button>
+            {% for symbol in symbols %}
+            <button class="tab-btn" onclick="switchTab('tab-{{ symbol }}', this)">{{ symbol }}</button>
+            {% endfor %}
         </div>
-
-        <div class="grid">
-            <div class="card">
-                <div class="card-header">
-                    <h2><span class="icon">📊</span> Últimas Señales Generadas</h2>
-                    <span class="card-count">{{ signals|length }} registros</span>
+        
+        {% for symbol in symbols %}
+        <div id="tab-{{ symbol }}" class="tab-content">
+            <h2 style="margin-bottom: 20px;">{{ symbol }} - Análisis Detallado</h2>
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-label">Señales</div>
+                    <div class="metric-value" id="metric-signals-{{ symbol }}">0</div>
                 </div>
-                <div class="card-body">
-                    {% if signals %}
-                    <table>
-                        <thead><tr><th>Símbolo</th><th>Acción</th><th>Precio</th><th>Razón</th></tr></thead>
-                        <tbody>
-                            {% for signal in signals %}
-                            <tr>
-                                <td class="symbol">{{ signal.symbol }}</td>
-                                <td><span class="badge badge-{{ signal.action|lower }}">{{ signal.action }}</span></td>
-                                <td class="price">${{ "%.2f"|format(signal.price|float) }}</td>
-                                <td class="reason" title="{{ signal.reason }}">{{ signal.reason }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% else %}
-                    <div class="empty-state"><div class="icon">📈</div><p>Aún no hay señales generadas.</p></div>
-                    {% endif %}
+                <div class="metric-card">
+                    <div class="metric-label">Compras</div>
+                    <div class="metric-value" style="color: #3fb950;" id="metric-buy-{{ symbol }}">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Ventas</div>
+                    <div class="metric-value" style="color: #f85149;" id="metric-sell-{{ symbol }}">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Órdenes</div>
+                    <div class="metric-value" id="metric-orders-{{ symbol }}">0</div>
                 </div>
             </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2><span class="icon">📋</span> Historial de Órdenes</h2>
-                    <span class="card-count">{{ orders|length }} registros</span>
-                </div>
-                <div class="card-body">
-                    {% if orders %}
-                    <table>
-                        <thead><tr><th>Símbolo</th><th>Acción</th><th>Cantidad</th><th>Estado</th></tr></thead>
-                        <tbody>
-                            {% for order in orders %}
-                            <tr>
-                                <td class="symbol">{{ order.signal_received.symbol }}</td>
-                                <td><span class="badge badge-{{ order.signal_received.action|lower }}">{{ order.signal_received.action }}</span></td>
-                                <td class="price">{{ order.signal_received.quantity }}</td>
-                                <td><span class="badge badge-{{ order.order_status|lower }}">{{ order.order_status }}</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% else %}
-                    <div class="empty-state"><div class="icon">📝</div><p>Aún no hay órdenes ejecutadas.</p></div>
-                    {% endif %}
-                </div>
-            </div>
+            
+            <h3 style="margin-bottom: 15px;">Últimas Señales</h3>
+            <table id="signals-table-{{ symbol }}">
+                <thead>
+                    <tr>
+                        <th>Acción</th>
+                        <th>Precio</th>
+                        <th>Razón</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody id="signals-body-{{ symbol }}">
+                    <tr><td colspan="4" class="empty-state">Sin datos</td></tr>
+                </tbody>
+            </table>
+            
+            <h3 style="margin-bottom: 15px; margin-top: 30px;">Historial de Órdenes</h3>
+            <table id="orders-table-{{ symbol }}">
+                <thead>
+                    <tr>
+                        <th>Acción</th>
+                        <th>Cantidad</th>
+                        <th>Estado</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody id="orders-body-{{ symbol }}">
+                    <tr><td colspan="4" class="empty-state">Sin datos</td></tr>
+                </tbody>
+            </table>
         </div>
-
-        <footer><p>Trading Bot Dashboard v1.0 | Powered by <a href="https://cloud.google.com">Google Cloud Platform</a></p></footer>
+        {% endfor %}
+        
+        <footer>Trading Bot Dashboard v2.0 | Powered by Google Cloud Platform</footer>
     </div>
-
+    
     <script>
-        const signalsData = [{% for signal in signals %}{price: {{ signal.price|float }}, action: "{{ signal.action }}"}{% if not loop.last %},{% endif %}{% endfor %}].reverse( );
-        const labels = signalsData.map((_, i) => '#' + (i + 1));
-        const prices = signalsData.map(s => s.price);
-        const pointColors = signalsData.map(s => s.action === 'BUY' ? '#3fb950' : s.action === 'SELL' ? '#f85149' : '#58a6ff');
-        const ctx = document.getElementById('priceChart').getContext('2d');
-        if (prices.length > 0) {
-            new Chart(ctx, {
-                type: 'line',
-                data: { labels: labels, datasets: [{ label: 'Precio BTC', data: prices, borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', borderWidth: 2, fill: true, tension: 0.3, pointBackgroundColor: pointColors, pointBorderColor: pointColors, pointRadius: 6 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => '$' + v.toLocaleString() } } } }
-            });
-        } else {
-            ctx.font = '16px sans-serif'; ctx.fillStyle = '#8b949e'; ctx.textAlign = 'center';
-            ctx.fillText('No hay datos de precios disponibles', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
         }
+        
+        async function loadSymbolData(symbol) {
+            try {
+                const response = await fetch(`/api/symbol/${symbol}`);
+                const data = await response.json();
+                
+                const signals = data.signals || [];
+                const orders = data.orders || [];
+                
+                document.getElementById(`metric-signals-${symbol}`).textContent = signals.length;
+                document.getElementById(`metric-buy-${symbol}`).textContent = signals.filter(s => s.action === 'BUY').length;
+                document.getElementById(`metric-sell-${symbol}`).textContent = signals.filter(s => s.action === 'SELL').length;
+                document.getElementById(`metric-orders-${symbol}`).textContent = orders.length;
+                
+                const signalsBody = document.getElementById(`signals-body-${symbol}`);
+                signalsBody.innerHTML = signals.length > 0 ? signals.map(s => `
+                    <tr>
+                        <td><span class="badge badge-${s.action.toLowerCase()}">${s.action}</span></td>
+                        <td>$${s.price.toFixed(2)}</td>
+                        <td>${s.reason}</td>
+                        <td>${new Date(s.timestamp).toLocaleString()}</td>
+                    </tr>
+                `).join('') : '<tr><td colspan="4" class="empty-state">Sin datos</td></tr>';
+                
+                const ordersBody = document.getElementById(`orders-body-${symbol}`);
+                ordersBody.innerHTML = orders.length > 0 ? orders.map(o => `
+                    <tr>
+                        <td><span class="badge badge-${o.signal_received.action.toLowerCase()}">${o.signal_received.action}</span></td>
+                        <td>${o.signal_received.quantity}</td>
+                        <td><span class="badge badge-${o.order_status.toLowerCase()}">${o.order_status}</span></td>
+                        <td>${new Date(o.timestamp).toLocaleString()}</td>
+                    </tr>
+                `).join('') : '<tr><td colspan="4" class="empty-state">Sin datos</td></tr>';
+            } catch (e) {
+                console.error(`Error cargando datos para ${symbol}:`, e);
+            }
+        }
+        
+        // Cargar datos de todas las monedas al iniciar
+        const symbols = {{ symbols | tojson }};
+        symbols.forEach(symbol => loadSymbolData(symbol));
+        
+        // Actualizar cada 30 segundos
+        setInterval(() => {
+            symbols.forEach(symbol => loadSymbolData(symbol));
+        }, 30000);
     </script>
 </body>
 </html>
