@@ -1,33 +1,84 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8"><title>Trading Bot v3.1</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard v3.1</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --blue: #58a6ff; --border: #30363d; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab-btn { padding: 10px; background: var(--card); color: var(--text); cursor: pointer; border: 1px solid var(--border); }
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --blue: #58a6ff; --green: #3fb950; --border: #30363d; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 20px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 10px; }
+        .tab-btn { padding: 10px 20px; background: var(--card); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 6px; white-space: nowrap; }
+        .tab-btn.active { border-color: var(--blue); color: var(--blue); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; }
+        .metric-val { font-size: 24px; font-weight: bold; color: var(--blue); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); font-size: 14px; }
     </style>
 </head>
 <body>
-    <h1>🤖 Trading Bot v3.1</h1>
-    <div class="tabs">
-        <button class="tab-btn" onclick="showTab('dash')">📊 Dashboard</button>
-        <button class="tab-btn" onclick="showTab('pairs')">🔗 Pairs</button>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Trading Bot v3.1</h1>
+            <div style="color: var(--green)">● Sistema Operativo</div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('dash')">📊 Dashboard</button>
+            <button class="tab-btn" onclick="showTab('pairs')">🔗 Pairs Trading</button>
+            <button class="tab-btn" onclick="showTab('backtest')">📈 Simulador</button>
+        </div>
+
+        <div id="dash" class="tab-content active">
+            <div class="grid">
+                <div class="card"><div>Win Rate</div><div class="metric-val">{{ win_rate|default(0) }}%</div></div>
+                <div class="card"><div>P&L Total</div><div class="metric-val">{{ pnl|default(0) }}%</div></div>
+                <div class="card"><div>Señales Hoy</div><div class="metric-val">{{ signals|length if signals else 0 }}</div></div>
+            </div>
+            <div class="card" style="margin-top: 20px;">
+                <h3>Últimas Señales</h3>
+                <table>
+                    <thead><tr><th>Símbolo</th><th>Acción</th><th>Precio</th></tr></thead>
+                    <tbody>
+                        {% for s in signals %}
+                        <tr><td>{{ s.symbol }}</td><td>{{ s.action }}</td><td>${{ s.price }}</td></tr>
+                        {% else %}
+                        <tr><td colspan="3">Esperando señales en tiempo real...</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="pairs" class="tab-content">
+            <div class="card">
+                <h3>🔗 Análisis de Correlación</h3>
+                <p>Motor de Arbitraje Estadístico Activo</p>
+                <div id="pairs-data">Cargando datos del motor...</div>
+            </div>
+        </div>
+
+        <div id="backtest" class="tab-content">
+            <div class="card">
+                <h3>📈 Simulador de Estrategias 2025</h3>
+                <p>Basado en datos históricos de Binance</p>
+                <button style="padding: 10px; background: var(--blue); color: white; border: none; border-radius: 4px; cursor: pointer;">Ejecutar Simulación</button>
+            </div>
+        </div>
     </div>
-    <div id="dash" class="tab-content active">
-        <div class="card"><h3>Métricas</h3><p>Win Rate: {{ win_rate|default(0) }}%</p></div>
-    </div>
-    <div id="pairs" class="tab-content">
-        <div class="card"><h3>Pairs Trading</h3><p>Motor Activo</p></div>
-    </div>
+
     <script>
         function showTab(id) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(id).classList.add('active');
+            event.currentTarget.classList.add('active');
         }
     </script>
-</body></html>
+</body>
+</html>
