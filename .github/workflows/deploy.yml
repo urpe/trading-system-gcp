@@ -1,41 +1,33 @@
 name: Continuous Deployment to Cloud Run
-
 on:
   push:
     branches: [ main ]
-
 env:
   PROJECT_ID: mi-proyecto-trading-12345
   REGION: us-central1
   SYMBOLS: btcusdt ethusdt solusdt bnbusdt xrpusdt
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
     - name: Google Auth
       uses: 'google-github-actions/auth@v2'
       with:
         credentials_json: '${{ secrets.GCP_SA_KEY }}'
-
     - name: 'Set up Cloud SDK'
       uses: 'google-github-actions/setup-gcloud@v2'
-
-    - name: 'Deploy Order Agent'
-      run: gcloud run deploy order-agent --source ./order_agent --region ${{ env.REGION }} --quiet --allow-unauthenticated
-
-    - name: 'Deploy Dashboard'
-      run: gcloud run deploy dashboard --source ./dashboard --region ${{ env.REGION }} --quiet --allow-unauthenticated
-
-    - name: 'Deploy Alert Service'
-      run: gcloud run deploy alert-service --source ./alert_service --region ${{ env.REGION }} --quiet --allow-unauthenticated
-
+    - name: 'Deploy Core Services'
+      run: |
+        gcloud run deploy dashboard --source ./dashboard --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        gcloud run deploy order-agent --source ./order_agent --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        gcloud run deploy alert-service --source ./alert_service --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        gcloud run deploy pairs-trading-engine --source ./pairs_trading_engine --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        gcloud run deploy backtesting-simulator --source ./backtesting_simulator --region ${{ env.REGION }} --quiet --allow-unauthenticated
     - name: 'Deploy Multi-Asset Services'
       run: |
         for symbol in ${{ env.SYMBOLS }}; do
-          gcloud run deploy data-ingestor-$symbol --source ./data_ingestor --region ${{ env.REGION }} --quiet --allow-unauthenticated --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},TOPIC_ID=datos-crudos,TRADING_PAIR=$symbol"
-          gcloud run deploy strategy-agent-$symbol --source ./strategy_agent --region ${{ env.REGION }} --quiet --allow-unauthenticated --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},SUBSCRIPTION_ID=datos-crudos-sub,TOPIC_ID_SIGNALS=senales-trading,TRADING_PAIR=$symbol"
+          gcloud run deploy data-ingestor-$symbol --source ./data_ingestor --region ${{ env.REGION }} --quiet --allow-unauthenticated --set-env-vars="TRADING_PAIR=$symbol"
+          gcloud run deploy strategy-agent-$symbol --source ./strategy_agent --region ${{ env.REGION }} --quiet --allow-unauthenticated --set-env-vars="TRADING_PAIR=$symbol"
         done
