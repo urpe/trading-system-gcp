@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8"><title>Trading Bot v3.1</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --blue: #58a6ff; --border: #30363d; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { padding: 10px; background: var(--card); color: var(--text); cursor: pointer; border: 1px solid var(--border); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <h1>🤖 Trading Bot v3.1</h1>
+    <div class="tabs">
+        <button class="tab-btn" onclick="showTab('dash')">📊 Dashboard</button>
+        <button class="tab-btn" onclick="showTab('pairs')">🔗 Pairs</button>
+    </div>
+    <div id="dash" class="tab-content active">
+        <div class="card"><h3>Métricas</h3><p>Win Rate: {{ win_rate|default(0) }}%</p></div>
+    </div>
+    <div id="pairs" class="tab-content">
+        <div class="card"><h3>Pairs Trading</h3><p>Motor Activo</p></div>
+    </div>
+    <script>
+        function showTab(id) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+    </script>
+</body></html>
