@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Pairs Trading{% endblock %}
+{% block content %}
+<h1>🔗 Arbitraje Estadístico (Pairs Trading)</h1>
+<div class="card">
+    <h3>Correlaciones del Mercado</h3>
+    <p>Analizando la relación entre activos para detectar divergencias.</p>
+    <button onclick="fetchPairs()" style="padding: 10px 20px; background: var(--blue); border: none; color: white; border-radius: 6px; cursor: pointer;">Actualizar Datos</button>
+    <div id="results" style="margin-top: 20px;"></div>
+</div>
+<script>
+    async function fetchPairs() {
+        const res = await fetch('https://pairs-trading-engine-347366802960.us-central1.run.app/api/correlation' );
+        const data = await res.json();
+        let html = '<ul>';
+        data.pairs.forEach(p => { html += `<li>${p.pair}: <b>${p.corr}</b></li>`; });
+        document.getElementById('results').innerHTML = html + '</ul>';
+    }
+</script>
+{% endblock %}

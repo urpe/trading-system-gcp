@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Simulador{% endblock %}
+{% block content %}
+<h1>📈 Simulador de Estrategias 2025</h1>
+<div class="card">
+    <h3>Configuración de Backtesting</h3>
+    <input type="number" id="cap" placeholder="Capital Inicial" style="padding: 10px; background: #0d1117; border: 1px solid var(--border); color: white; border-radius: 6px;">
+    <button onclick="runSim()" style="padding: 10px 20px; background: #3fb950; border: none; color: white; border-radius: 6px; cursor: pointer;">Ejecutar</button>
+    <div id="sim-res" style="margin-top: 20px;"></div>
+</div>
+<script>
+    async function runSim() {
+        const res = await fetch('https://backtesting-simulator-347366802960.us-central1.run.app/api/backtest', {method: 'POST'} );
+        const data = await res.json();
+        document.getElementById('sim-res').innerHTML = `<h4>Resultado: +${data.pnl}%</h4><p>Win Rate: ${data.win_rate}%</p>`;
+    }
+</script>
+{% endblock %}

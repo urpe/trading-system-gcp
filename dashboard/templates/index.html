@@ -1,83 +1,15 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Bot Pro v3.1.4</title>
-    <style>
-        :root { --bg: #0d1117; --card: #161b22; --text: #c9d1d9; --blue: #58a6ff; --green: #3fb950; --border: #30363d; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 20px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 12px; text-align: center; }
-        .val { font-size: 28px; font-weight: bold; color: var(--blue); margin-top: 10px; }
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab-btn { padding: 10px 20px; background: var(--card); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 6px; transition: 0.3s; }
-        .tab-btn.active { border-color: var(--blue); color: var(--blue); background: rgba(88, 166, 255, 0.1); }
-        .tab-content { display: none; animation: fadeIn 0.5s; }
-        .tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🤖 Trading System <span style="color: var(--blue)">v3.1.4</span></h1>
-            <div style="color: var(--green)">● Conectado a Binance Testnet</div>
+{% extends "base.html" %}
+{% block title %}Dashboard General{% endblock %}
+{% block content %}
+<h1>Resumen del Mercado</h1>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+    {% for asset in assets %}
+    <a href="/asset/{{ asset }}" style="text-decoration: none; color: inherit;">
+        <div class="card" style="text-align: center; cursor: pointer;">
+            <h2 style="color: var(--blue);">{{ asset }}</h2>
+            <p>Ver detalles y señales →</p>
         </div>
-
-        <div class="grid">
-            <div class="card"><div>Win Rate</div><div class="val">{{ win_rate|default(0) }}%</div></div>
-            <div class="card"><div>P&L Total</div><div class="val">{{ pnl|default(0) }}%</div></div>
-            <div class="card"><div>Señales</div><div class="val">{{ signals|length if signals else 0 }}</div></div>
-        </div>
-
-        <div class="tabs">
-            <button class="tab-btn active" onclick="openTab(event, 'dash')">📊 Dashboard</button>
-            <button class="tab-btn" onclick="openTab(event, 'pairs')">🔗 Pairs Trading</button>
-            <button class="tab-btn" onclick="openTab(event, 'sim')">📈 Simulador</button>
-        </div>
-
-        <div id="dash" class="tab-content active">
-            <div class="card" style="text-align: left;">
-                <h3>Últimas Operaciones</h3>
-                <p style="color: #8b949e;">Esperando nuevas señales del mercado en tiempo real...</p>
-            </div>
-        </div>
-
-        <div id="pairs" class="tab-content">
-            <div class="card" style="text-align: left;">
-                <h3>🔗 Motor de Pairs Trading</h3>
-                <p>Analizando correlaciones entre BTC, ETH, SOL, BNB y XRP...</p>
-                <div style="padding: 20px; background: #0d1117; border-radius: 8px; border: 1px dashed var(--border);">
-                    Buscando oportunidades de arbitraje estadístico...
-                </div>
-            </div>
-        </div>
-
-        <div id="sim" class="tab-content">
-            <div class="card" style="text-align: left;">
-                <h3>📈 Simulador de Backtesting 2025</h3>
-                <p>Configura los parámetros para la simulación histórica:</p>
-                <div style="display: flex; gap: 10px; margin-top: 15px;">
-                    <input type="number" placeholder="Capital Inicial" style="background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px;">
-                    <button onclick="alert('Iniciando simulación...')" style="background: var(--blue); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Ejecutar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        function openTab(evt, tabName) {
-            var i, tabcontent, tablinks;
-            tabcontent = document.getElementsByClassName("tab-content");
-            for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; }
-            tablinks = document.getElementsByClassName("tab-btn");
-            for (i = 0; i < tablinks.length; i++) { tablinks[i].className = tablinks[i].className.replace(" active", ""); }
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
-    </script>
-</body>
-</html>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

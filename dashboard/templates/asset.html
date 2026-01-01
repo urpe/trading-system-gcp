@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle {{ symbol }} | Trading Pro{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+    <div>
+        <h1 style="margin: 0;">🪙 Análisis Detallado: <span style="color: var(--blue);">{{ symbol }}</span></h1>
+        <p style="color: #8b949e; margin: 5px 0 0 0;">Visualizando datos históricos y señales de Firestore</p>
+    </div>
+    <div style="text-align: right;">
+        <div style="color: #3fb950; font-weight: bold;">● Conectado</div>
+        <small style="color: #8b949e;">Binance Testnet</small>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <div class="card">
+        <h3 style="margin-top: 0; color: #8b949e; font-size: 14px; text-transform: uppercase;">Estado del Activo</h3>
+        <div style="font-size: 24px; font-weight: bold;">{{ symbol }}/USDT</div>
+        <p style="color: #3fb950; margin: 10px 0 0 0;">Monitoreo activo por Strategy Agent</p>
+    </div>
+    <div class="card">
+        <h3 style="margin-top: 0; color: #8b949e; font-size: 14px; text-transform: uppercase;">Total Señales (24h)</h3>
+        <div style="font-size: 24px; font-weight: bold;">{{ signals|length }}</div>
+        <p style="color: #8b949e; margin: 10px 0 0 0;">Actualizado hace un momento</p>
+    </div>
+</div>
+
+<div class="card">
+    <h3 style="margin-top: 0; margin-bottom: 20px;">Historial de Señales Recientes</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="text-align: left; color: #8b949e; border-bottom: 1px solid var(--border);">
+                <th style="padding: 12px;">ACCIÓN</th>
+                <th style="padding: 12px;">PRECIO</th>
+                <th style="padding: 12px;">FECHA Y HORA</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in signals %}
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td style="padding: 12px;">
+                    {% if s.action == 'BUY' %}
+                        <span style="background: rgba(63, 185, 80, 0.1); color: #3fb950; padding: 4px 8px; border-radius: 4px; font-weight: bold;">{{ s.action }}</span>
+                    {% else %}
+                        <span style="background: rgba(248, 81, 73, 0.1); color: #f85149; padding: 4px 8px; border-radius: 4px; font-weight: bold;">{{ s.action }}</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 12px; font-family: monospace; font-size: 16px;">${{ s.price }}</td>
+                <td style="padding: 12px; font-size: 14px; color: #8b949e;">{{ s.timestamp }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="padding: 40px; text-align: center; color: #8b949e;">
+                    No se han encontrado señales registradas para este activo en Firestore.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top: 20px; text-align: center;">
+    <a href="/" style="color: var(--blue); text-decoration: none; font-size: 14px;">← Volver al Resumen General</a>
+</div>
+{% endblock %}

@@ -23,8 +23,8 @@ jobs:
         gcloud run deploy dashboard --source ./dashboard --region ${{ env.REGION }} --quiet --allow-unauthenticated
         gcloud run deploy order-agent --source ./order_agent --region ${{ env.REGION }} --quiet --allow-unauthenticated
         gcloud run deploy alert-service --source ./alert_service --region ${{ env.REGION }} --quiet --allow-unauthenticated
-        gcloud run deploy pairs-trading-engine --source ./pairs_trading_engine --region ${{ env.REGION }} --quiet --allow-unauthenticated
-        gcloud run deploy backtesting-simulator --source ./backtesting_simulator --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        gcloud run deploy pairs-trading-engine --source ./services/pairs_trading --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        gcloud run deploy backtesting-simulator --source ./services/backtesting --region ${{ env.REGION }} --quiet --allow-unauthenticated
     - name: 'Deploy Multi-Asset Services'
       run: |
         for symbol in ${{ env.SYMBOLS }}; do

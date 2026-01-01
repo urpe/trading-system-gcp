@@ -1,33 +1,32 @@
 import os
 from flask import Flask, render_template, jsonify
+from google.cloud import firestore
 
 app = Flask(__name__)
+db = firestore.Client(project=os.environ.get("PROJECT_ID", "mi-proyecto-trading-12345"))
 
-# Configuración de servicios
-SERVICES = {
-    "PAIRS_URL": os.environ.get("PAIRS_TRADING_ENGINE_URL", "#"),
-    "BACKTEST_URL": os.environ.get("BACKTESTING_SIMULATOR_URL", "#"),
-}
+ASSETS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP']
 
 @app.route('/')
 def index():
-    # Datos por defecto para evitar que la página se rompa
-    context = {
-        "signals": [],
-        "orders": [],
-        "win_rate": 0,
-        "pnl": 0,
-        "buys": 0,
-        "sells": 0,
-        "volume": 0,
-        "services": SERVICES
-    }
-    return render_template('index.html', **context)
+    # Vista General: Resumen de todos los activos
+    return render_template('index.html', assets=ASSETS)
 
-@app.route('/api/status')
-def status():
-    return jsonify({"status": "ok", "version": "v3.1.4", "message": "Dashboard Operativo"})
+@app.route('/asset/<symbol>')
+def asset_detail(symbol):
+    # Vista Detallada: Datos de una sola moneda
+    symbol = symbol.upper()
+    signals_ref = db.collection('signals').where('symbol', '==', symbol.lower()+'usdt').limit(20).stream()
+    signals = [doc.to_dict() for doc in signals_ref]
+    return render_template('asset.html', symbol=symbol, signals=signals, assets=ASSETS)
+
+@app.route('/pairs')
+def pairs_view():
+    return render_template('pairs.html', assets=ASSETS)
+
+@app.route('/simulator')
+def simulator_view():
+    return render_template('simulator.html', assets=ASSETS)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
