@@ -53,5 +53,20 @@ async def main():
     tasks = [binance_stream(s) for s in SYMBOLS]
     await asyncio.gather(*tasks)
 
+# Añade esta importación al inicio
+import threading
+from flask import Flask
+
+# Añade esto antes del bloque if __name__ == "__main__":
+app = Flask(__name__)
+@app.route('/')
+def health(): return "OK"
+
+def run_health_check():
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
 if __name__ == "__main__":
+    # Ejecutar health check en un hilo separado para que Cloud Run esté feliz
+    threading.Thread(target=run_health_check, daemon=True).start()
+    # Ejecutar el loop principal de WebSockets
     asyncio.run(main())
