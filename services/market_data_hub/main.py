@@ -18,7 +18,7 @@ async def health_check(request):
 
 # 2. Lógica de WebSockets
 async def binance_stream(symbol):
-    uri = f"wss://stream.binance.com:9443/ws/{symbol}@ticker"
+    uri = f"wss://stream.binance.com:443/ws/{symbol}@ticker"
     while True:
         try:
             async with connect(uri) as websocket:

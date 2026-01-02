@@ -1,4 +1,4 @@
-name: Continuous Deployment v5.0
+name: Continuous Deployment v5.1.3
 on:
   push:
     branches: [ main ]
@@ -19,11 +19,11 @@ jobs:
       uses: 'google-github-actions/setup-gcloud@v2'
     - name: 'Deploy Infrastructure'
       run: |
-        # 1. Dashboard (La Torre de Control)
+        # 1. Dashboard
         gcloud run deploy dashboard --source ./dashboard --region ${{ env.REGION }} --quiet --allow-unauthenticated
         
-        # 2. Market Data Hub (Consolidado - Reemplaza a los 5 ingestores)
-        gcloud run deploy market-data-hub --source ./services/market_data_hub --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        # 2. Market Data Hub (CAMBIO A EUROPA PARA EVITAR BLOQUEO 451)
+        gcloud run deploy market-data-hub --source ./services/market_data_hub --region europe-west1 --quiet --allow-unauthenticated
         
         # 3. Motores de Trading
         gcloud run deploy pairs-trading-engine --source ./services/pairs_trading --region ${{ env.REGION }} --quiet --allow-unauthenticated
