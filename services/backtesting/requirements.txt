@@ -1,2 +1,4 @@
 flask
-gunicorn
+pandas
+google-cloud-firestore
+google-cloud-bigquery

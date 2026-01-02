@@ -1,6 +1,4 @@
-google-cloud-firestore
 google-cloud-pubsub
+google-cloud-firestore
 pandas
 numpy
-flask
-gunicorn
