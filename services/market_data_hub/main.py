@@ -2,71 +2,53 @@ import asyncio
 import json
 import os
 from websockets import connect
-from google.cloud import firestore
-from google.cloud import pubsub_v1
+from google.cloud import firestore, pubsub_v1
+from aiohttp import web
 
-# Configuración de Clientes
+# Configuración
 PROJECT_ID = "mi-proyecto-trading-12345"
-db = firestore.Client(project=PROJECT_ID)
+db = firestore.Client(project=PROJECT_ID )
 publisher = pubsub_v1.PublisherClient()
 topic_path = publisher.topic_path(PROJECT_ID, "market-updates")
-
 SYMBOLS = ['btcusdt', 'ethusdt', 'solusdt', 'bnbusdt', 'xrpusdt']
 
+# 1. Servidor de Salud (Async)
+async def health_check(request):
+    return web.Response(text="OK")
+
+# 2. Lógica de WebSockets
 async def binance_stream(symbol):
     uri = f"wss://stream.binance.com:9443/ws/{symbol}@ticker"
-    print(f"Conectando WebSocket para {symbol}...")
-    
-    async with connect(uri) as websocket:
-        while True:
-            try:
-                # Recibir datos de Binance
-                message = await websocket.recv()
-                data = json.loads(message)
-                
-                price_data = {
-                    "symbol": symbol,
-                    "price": data['c'],
-                    "timestamp": str(data['E']) # Timestamp de Binance
-                }
-                
-                # 1. Guardar en Firestore (Persistencia para el Dashboard)
-                db.collection(f"market_data_{symbol}").document("latest").set({
-                    "symbol": symbol,
-                    "price": data['c'],
-                    "timestamp": firestore.SERVER_TIMESTAMP
-                })
-                
-                # 2. Publicar en Pub/Sub (Evento en tiempo real para Estrategias)
-                message_json = json.dumps(price_data)
-                publisher.publish(topic_path, message_json.encode("utf-8"))
-                
-                print(f"✅ {symbol.upper()}: {data['c']} (Firestore + Pub/Sub)")
-                
-            except Exception as e:
-                print(f"❌ Error en stream {symbol}: {e}")
-                await asyncio.sleep(5) # Esperar antes de reintentar
-                break
+    while True:
+        try:
+            async with connect(uri) as websocket:
+                while True:
+                    data = json.loads(await websocket.recv())
+                    price_data = {"symbol": symbol, "price": data['c'], "timestamp": str(data['E'])}
+                    # Guardar y Publicar
+                    db.collection(f"market_data_{symbol}").document("latest").set({
+                        "symbol": symbol, "price": data['c'], "timestamp": firestore.SERVER_TIMESTAMP
+                    })
+                    publisher.publish(topic_path, json.dumps(price_data).encode("utf-8"))
+        except Exception as e:
+            print(f"Error en {symbol}: {e}")
+            await asyncio.sleep(5)
 
+# 3. Orquestador Principal
 async def main():
-    # Ejecutar todos los streams en paralelo
-    tasks = [binance_stream(s) for s in SYMBOLS]
-    await asyncio.gather(*tasks)
-
-# Añade esta importación al inicio
-import threading
-from flask import Flask
-
-# Añade esto antes del bloque if __name__ == "__main__":
-app = Flask(__name__)
-@app.route('/')
-def health(): return "OK"
-
-def run_health_check():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    # Configurar servidor web de salud
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get('PORT', 8080)))
+    
+    # Arrancar todo en paralelo
+    print("🚀 Iniciando Market Data Hub v5.1.2...")
+    await asyncio.gather(
+        site.start(),
+        *[binance_stream(s) for s in SYMBOLS]
+    )
 
 if __name__ == "__main__":
-    # Ejecutar health check en un hilo separado para que Cloud Run esté feliz
-    threading.Thread(target=run_health_check, daemon=True).start()
-    # Ejecutar el loop principal de WebSockets
     asyncio.run(main())
