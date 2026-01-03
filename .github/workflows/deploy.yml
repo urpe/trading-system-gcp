@@ -26,7 +26,7 @@ jobs:
         gcloud run deploy market-data-hub --source ./services/market_data_hub --region europe-west1 --quiet --allow-unauthenticated
         
         # 3. Motores de Trading
-        gcloud run deploy pairs-trading-engine --source ./services/pairs_trading --region ${{ env.REGION }} --quiet --allow-unauthenticated
+        gcloud run deploy pairs-trading-engine --source ./services/pairs-trading --region ${{ env.REGION }} --quiet --allow-unauthenticated
         gcloud run deploy backtesting-simulator --source ./services/backtesting --region ${{ env.REGION }} --quiet --allow-unauthenticated
         
         # 4. Agentes de Ejecución
