@@ -18,13 +18,13 @@ jobs:
 
     - name: Deploy Services
       run: |
-        # 1. Market Data Hub (EUROPA) - Puerto 8080
+        # 1. Market Data Hub (EUROPA)
         gcloud run deploy market-data-hub --source ./services/market_data_hub --region europe-west1 --quiet --allow-unauthenticated
         
-        # 2. Dashboard (USA) - Usando Gunicorn
-        gcloud run deploy dashboard --source ./dashboard --region us-central1 --quiet --allow-unauthenticated --set-env-vars "PORT=8080"
+        # 2. Dashboard (USA)
+        gcloud run deploy dashboard --source ./dashboard --region us-central1 --quiet --allow-unauthenticated
         
-        # 3. Strategy Agent (USA) - Ahora como Servidor
+        # 3. Strategy Agent (USA)
         gcloud run deploy strategy-agent --source ./strategy_agent --region us-central1 --quiet --allow-unauthenticated
         
         # 4. Motores de Backend (USA)
