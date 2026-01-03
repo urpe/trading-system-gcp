@@ -1,172 +1,199 @@
 {% extends "base.html" %}
+
+{% block title %}Dashboard Pro | Trading System v7.0{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <h1>📊 Dashboard de Trading</h1>
-    <p class="text-muted">Sistema de trading automatizado con datos en tiempo real</p>
-    
-    <!-- Resumen del Mercado -->
+<div class="container-fluid px-4">
+    <!-- SECCIÓN: RESUMEN DEL MERCADO -->
     <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h6>Activos Monitoreados</h6>
-                    <h2>{{ summary.total_assets }}</h2>
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">📊 Resumen del Mercado</h5>
+                        <small class="text-muted">Actualizado cada 15 segundos</small>
+                    </div>
+                    <span class="badge bg-info" data-bs-toggle="tooltip" title="Número de activos que están reportando datos en tiempo real">
+                        {{ summary.active_assets }}/{{ summary.total_assets }} activos
+                    </span>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
                 <div class="card-body">
-                    <h6>Activos con Datos</h6>
-                    <h2>{{ summary.active_assets }}</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card {% if summary.avg_change > 0 %}bg-success{% elif summary.avg_change < 0 %}bg-danger{% else %}bg-secondary{% endif %} text-white">
-                <div class="card-body">
-                    <h6>Cambio Promedio 24h</h6>
-                    <h2>{{ summary.avg_change }}%</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-dark text-white">
-                <div class="card-body">
-                    <h6>Estado del Mercado</h6>
-                    <h2>{{ summary.market_status }}</h2>
+                    <div class="row text-center">
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted d-block">Activos Monitoreados</small>
+                                <h3 class="fw-bold text-primary">{{ summary.total_assets }}</h3>
+                                <small class="text-muted" data-bs-toggle="tooltip" title="El sistema monitorea 50 criptomonedas principales del mercado">
+                                    ℹ️ ¿Qué significa?
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted d-block">Cambio Promedio 24h</small>
+                                <h3 class="fw-bold {% if summary.avg_change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {{ "%.2f"|format(summary.avg_change) }}%
+                                </h3>
+                                <small class="text-muted" data-bs-toggle="tooltip" title="Promedio del cambio porcentual de todos los activos en las últimas 24 horas">
+                                    ℹ️ ¿Qué significa?
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted d-block">Estado del Mercado</small>
+                                <h3 class="fw-bold">
+                                    {% if summary.avg_change > 2 %}
+                                        <span class="text-success">🚀 Alcista</span>
+                                    {% elif summary.avg_change < -2 %}
+                                        <span class="text-danger">📉 Bajista</span>
+                                    {% else %}
+                                        <span class="text-warning">➡️ Neutral</span>
+                                    {% endif %}
+                                </h3>
+                                <small class="text-muted" data-bs-toggle="tooltip" title="Alcista: mercado subiendo. Bajista: mercado bajando. Neutral: sin tendencia clara.">
+                                    ℹ️ ¿Qué significa?
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <small class="text-muted d-block">Señales Activas</small>
+                                <h3 class="fw-bold text-info">{{ signals|length }}</h3>
+                                <small class="text-muted" data-bs-toggle="tooltip" title="Número de señales de trading generadas por el Strategy Agent">
+                                    ℹ️ ¿Qué significa?
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Tabla de Precios -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">💰 Precios en Tiempo Real</h4>
-            <small class="text-muted">Datos desde Binance vía Europa</small>
-        </div>
-        <div class="card-body">
-            <table class="table table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Activo</th>
-                        <th>Precio (USD)</th>
-                        <th>Cambio 24h</th>
-                        <th>Máximo</th>
-                        <th>Mínimo</th>
-                        <th>Volumen</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for asset in assets %}
-                    <tr {% if data[asset].price|default(0) == 0 %}class="table-warning"{% endif %}>
-                        <td><strong>{{ asset }}/USDT</strong></td>
-                        <td>
-                            {% if data[asset].price|default(0) > 0 %}
-                                ${{ "%.2f"|format(data[asset].price) }}
-                            {% else %}
-                                <span class="text-muted">Sin datos</span>
-                            {% endif %}
-                        </td>
-                        <td class="{% if data[asset].change|default(0) > 0 %}text-success{% elif data[asset].change|default(0) < 0 %}text-danger{% else %}text-muted{% endif %}">
-                            {% if data[asset].price|default(0) > 0 %}
-                                {{ "%.2f"|format(data[asset].change|default(0)) }}%
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if data[asset].high|default(0) > 0 %}
-                                ${{ "%.2f"|format(data[asset].high) }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if data[asset].low|default(0) > 0 %}
-                                ${{ "%.2f"|format(data[asset].low) }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if data[asset].volume|default(0) > 0 %}
-                                {{ "%.0f"|format(data[asset].volume) }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            <a href="/asset/{{ asset }}" class="btn btn-sm btn-outline-primary">Ver Detalles</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    
-    <!-- Últimas Señales -->
-    <div class="card">
-        <div class="card-header">
-            <h4 class="mb-0">🚦 Últimas Señales de Trading</h4>
-        </div>
-        <div class="card-body">
-            {% if signals %}
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Activo</th>
-                        <th>Señal</th>
-                        <th>Precio</th>
-                        <th>Razón</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for signal in signals %}
-                    <tr>
-                        <td><strong>{{ signal.symbol }}</strong></td>
-                        <td>
-                            <span class="badge {% if signal.signal == 'BUY' %}bg-success{% elif signal.signal == 'SELL' %}bg-danger{% else %}bg-secondary{% endif %}">
-                                {{ signal.signal|default('N/A') }}
-                            </span>
-                        </td>
-                        <td>${{ "%.2f"|format(signal.price|default(0)) }}</td>
-                        <td><small>{{ signal.reason|default('Sin razón') }}</small></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="alert alert-info mb-0">
-                <strong>ℹ️ Info:</strong> No hay señales recientes. El Strategy Agent generará señales cuando reciba datos del Market Data Hub.
+
+    <!-- GUÍA RÁPIDA -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <h5 class="alert-heading">📚 Guía Rápida del Dashboard</h5>
+                <p class="mb-2"><strong>¿Qué estoy viendo?</strong> Este dashboard muestra precios en tiempo real de criptomonedas y señales generadas por algoritmos de trading.</p>
+                <hr>
+                <p class="mb-0">
+                    <strong>🟢 BUY:</strong> El algoritmo sugiere comprar (precio podría subir). 
+                    <strong>🔴 SELL:</strong> El algoritmo sugiere vender (precio podría bajar). 
+                    <strong>⚪ HOLD:</strong> Mantener posición actual.
+                </p>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            {% endif %}
         </div>
     </div>
-    
-    <!-- Navegación Rápida -->
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <a href="/simulator" class="card text-decoration-none">
-                <div class="card-body text-center">
-                    <h3>🚀</h3>
-                    <h5>Simulador de Estrategias</h5>
-                    <p class="text-muted mb-0">Prueba estrategias con datos históricos</p>
+
+    <div class="row">
+        <!-- TABLA DE PRECIOS -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">💰 Precios en Tiempo Real</h5>
                 </div>
-            </a>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Activo</th>
+                                    <th>Precio (USD)</th>
+                                    <th>Cambio 24h</th>
+                                    <th>Volumen</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset, info in data.items() %}
+                                <tr>
+                                    <td><strong>{{ asset }}</strong>/USDT</td>
+                                    <td>${{ "%.2f"|format(info.price|default(0)) }}</td>
+                                    <td class="{% if info.change|default(0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {{ "%.2f"|format(info.change|default(0)) }}%
+                                    </td>
+                                    <td>{{ "%.0f"|format(info.volume|default(0)) }}</td>
+                                    <td>
+                                        <a href="/asset/{{ asset }}" class="btn btn-sm btn-outline-primary">
+                                            Ver Detalles
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        Esperando datos del Market Data Hub...
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="col-md-6">
-            <a href="/pairs" class="card text-decoration-none">
-                <div class="card-body text-center">
-                    <h3>⚖️</h3>
-                    <h5>Pairs Trading</h5>
-                    <p class="text-muted mb-0">Analiza correlaciones entre activos</p>
+
+        <!-- ÚLTIMAS SEÑALES -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">🤖 Señales de Trading</h5>
+                    <span class="badge bg-warning text-dark" data-bs-toggle="tooltip" title="Las señales son generadas automáticamente por el Strategy Agent usando análisis técnico">
+                        Auto-generadas
+                    </span>
                 </div>
-            </a>
+                <div class="card-body p-0">
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        {% if signals %}
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Activo</th>
+                                    <th>Señal</th>
+                                    <th>Precio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in signals %}
+                                <tr>
+                                    <td><strong>{{ s.symbol }}</strong></td>
+                                    <td>
+                                        <span class="badge {% if s.signal == 'BUY' %}bg-success{% elif s.signal == 'SELL' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                            {{ s.signal }}
+                                        </span>
+                                    </td>
+                                    <td>${{ "%.2f"|format(s.price|default(0)) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div class="p-4 text-center text-muted">
+                            <p>Esperando señales del Strategy Agent...</p>
+                            <small>Las señales se generan cuando hay cruces de medias móviles.</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <small class="text-muted">
+                        <strong>¿Cómo se generan?</strong> El Strategy Agent calcula medias móviles (SMA) 
+                        y genera señales cuando la SMA rápida cruza la SMA lenta.
+                    </small>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    // Activar tooltips de Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+</script>
 {% endblock %}

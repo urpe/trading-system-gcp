@@ -1,175 +1,149 @@
 {% extends "base.html" %}
+
+{% block title %}Pairs Trading | Trading System v7.0{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
-    <h1>⚖️ Pairs Trading Engine</h1>
-    <p class="text-muted mb-4">Analiza correlaciones entre pares de activos para encontrar oportunidades de arbitraje</p>
-    
-    <!-- Explicación -->
-    <div class="card mb-4 bg-light">
-        <div class="card-header">
-            <h5 class="mb-0">📖 ¿Qué es Pairs Trading?</h5>
-        </div>
-        <div class="card-body">
-            <p>El <strong>Pairs Trading</strong> es una estrategia de trading neutral al mercado que consiste en:</p>
-            <ol>
-                <li>Identificar dos activos altamente correlacionados (ej: BTC y ETH)</li>
-                <li>Cuando el ratio entre ellos se desvía de su media histórica, abrir posiciones opuestas</li>
-                <li>Cerrar cuando el ratio vuelve a la normalidad</li>
-            </ol>
-            <p class="mb-0"><strong>Señales:</strong></p>
-            <ul class="mb-0">
-                <li><span class="badge bg-success">LONG_SPREAD</span> = Comprar Activo 1, Vender Activo 2</li>
-                <li><span class="badge bg-danger">SHORT_SPREAD</span> = Vender Activo 1, Comprar Activo 2</li>
-                <li><span class="badge bg-secondary">NEUTRAL</span> = Mantener posición actual</li>
-            </ul>
-        </div>
-    </div>
-    
-    <!-- Formulario -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h4>🔍 Analizar Par de Activos</h4>
-        </div>
-        <div class="card-body">
-            <form id="pairsForm">
-                <div class="row align-items-end">
-                    <div class="col-md-4">
-                        <label class="form-label">Activo 1 (Long)</label>
-                        <select class="form-select" id="pair1">
-                            {% for asset in assets %}
-                            <option value="{{ asset }}" {% if asset == 'BTC' %}selected{% endif %}>{{ asset }}/USDT</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-1 text-center">
-                        <h3 class="mb-0">↔️</h3>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Activo 2 (Short)</label>
-                        <select class="form-select" id="pair2">
-                            {% for asset in assets %}
-                            <option value="{{ asset }}" {% if asset == 'ETH' %}selected{% endif %}>{{ asset }}/USDT</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <button type="submit" class="btn btn-primary w-100" id="analyzeBtn">
-                            🔬 Analizar Correlación
-                        </button>
-                    </div>
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h4 class="mb-0">⚖️ Pairs Trading Engine</h4>
                 </div>
-            </form>
+                <div class="card-body">
+                    <!-- EXPLICACIÓN -->
+                    <div class="alert alert-info mb-4">
+                        <h5>📚 ¿Qué es Pairs Trading?</h5>
+                        <p>Es una estrategia de <strong>arbitraje estadístico</strong> que busca beneficiarse de la relación entre dos activos correlacionados.</p>
+                        <p><strong>Ejemplo:</strong> Si BTC y ETH normalmente se mueven juntos, pero hoy ETH subió más que BTC, podrías:</p>
+                        <ul class="mb-0">
+                            <li>Comprar BTC (esperando que suba para "alcanzar" a ETH)</li>
+                            <li>Vender ETH (esperando que baje para "igualarse" a BTC)</li>
+                        </ul>
+                    </div>
+
+                    <form id="pairsForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Activo 1 (Long)</label>
+                                <select class="form-select" name="asset1">
+                                    {% for asset in assets %}
+                                    <option value="{{ asset }}" {% if asset == 'BTC' %}selected{% endif %}>{{ asset }}/USDT</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">El activo que comprarías</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Activo 2 (Short)</label>
+                                <select class="form-select" name="asset2">
+                                    {% for asset in assets %}
+                                    <option value="{{ asset }}" {% if asset == 'ETH' %}selected{% endif %}>{{ asset }}/USDT</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">El activo que venderías</small>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            🔍 Analizar Par
+                        </button>
+                    </form>
+
+                    <div id="result" class="mt-4"></div>
+                </div>
+            </div>
         </div>
-    </div>
-    
-    <!-- Resultados -->
-    <div id="result" class="card" style="display:none;">
-        <div class="card-header bg-dark text-white">
-            <h4 class="mb-0">📊 Análisis de Correlación</h4>
+
+        <!-- PANEL DE AYUDA -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">📖 Conceptos Clave</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="fw-bold">Correlación</h6>
+                    <p>Mide qué tan similar se mueven dos activos:</p>
+                    <ul>
+                        <li><strong>1.0:</strong> Se mueven exactamente igual</li>
+                        <li><strong>0.0:</strong> No tienen relación</li>
+                        <li><strong>-1.0:</strong> Se mueven en direcciones opuestas</li>
+                    </ul>
+                    
+                    <h6 class="fw-bold mt-3">Ratio</h6>
+                    <p>Precio del Activo 1 / Precio del Activo 2. Si el ratio está muy alto o bajo respecto a su promedio histórico, hay oportunidad.</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">⚠️ Señales</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>LONG_SPREAD:</strong> El ratio está bajo. Compra Activo 1, vende Activo 2.</p>
+                    <p><strong>SHORT_SPREAD:</strong> El ratio está alto. Vende Activo 1, compra Activo 2.</p>
+                    <p class="mb-0"><strong>NEUTRAL:</strong> El ratio está en su rango normal. No operar.</p>
+                </div>
+            </div>
         </div>
-        <div class="card-body" id="resultBody"></div>
     </div>
 </div>
 
 <script>
-document.getElementById('pairsForm').addEventListener('submit', function(e) {
+document.getElementById('pairsForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+    const btn = this.querySelector('button[type="submit"]');
+    const resultDiv = document.getElementById('result');
     
-    const pair1 = document.getElementById('pair1').value;
-    const pair2 = document.getElementById('pair2').value;
-    
-    if (pair1 === pair2) {
-        alert('Por favor selecciona dos activos diferentes');
-        return;
-    }
-    
-    const btn = document.getElementById('analyzeBtn');
     btn.disabled = true;
     btn.innerHTML = '⏳ Analizando...';
     
-    fetch('/api/pairs-analysis', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ pair1: pair1, pair2: pair2 })
-    })
-    .then(r => r.json())
-    .then(data => {
-        document.getElementById('result').style.display = 'block';
-        if (data.status === 'success') {
-            const a = data.analysis;
-            const signalClass = a.signal === 'LONG_SPREAD' ? 'bg-success' : 
-                               a.signal === 'SHORT_SPREAD' ? 'bg-danger' : 'bg-secondary';
-            
-            document.getElementById('resultBody').innerHTML = `
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="card border-primary">
-                            <div class="card-body text-center">
-                                <h5 class="text-primary">${data.pair1.symbol}/USDT</h5>
-                                <h2>$${data.pair1.price.toLocaleString()}</h2>
-                            </div>
-                        </div>
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    try {
+        const response = await fetch('/api/pairs-analysis', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const signalClass = result.signal === 'LONG_SPREAD' ? 'success' : 
+                               result.signal === 'SHORT_SPREAD' ? 'danger' : 'secondary';
+            resultDiv.innerHTML = `
+                <div class="card border-${signalClass}">
+                    <div class="card-header bg-${signalClass} text-white">
+                        <h5 class="mb-0">Análisis: ${result.pair}</h5>
                     </div>
-                    <div class="col-md-6">
-                        <div class="card border-info">
-                            <div class="card-body text-center">
-                                <h5 class="text-info">${data.pair2.symbol}/USDT</h5>
-                                <h2>$${data.pair2.price.toLocaleString()}</h2>
+                    <div class="card-body">
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <h4>${result.ratio.toFixed(4)}</h4>
+                                <small>Ratio Actual</small>
                             </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body text-center">
-                                <small class="text-muted">Ratio Actual</small>
-                                <h4>${a.ratio}</h4>
-                                <small>${data.pair1.symbol}/${data.pair2.symbol}</small>
+                            <div class="col-4">
+                                <h4>${result.correlation.toFixed(2)}</h4>
+                                <small>Correlación</small>
                             </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-body text-center">
-                                <small class="text-muted">Correlación</small>
-                                <h4>${(a.correlation * 100).toFixed(1)}%</h4>
-                                <small>Histórica</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card ${signalClass} text-white">
-                            <div class="card-body text-center">
+                            <div class="col-4">
+                                <h4><span class="badge bg-${signalClass}">${result.signal}</span></h4>
                                 <small>Señal</small>
-                                <h4>${a.signal}</h4>
                             </div>
                         </div>
+                        <hr>
+                        <p><strong>Interpretación:</strong> ${result.interpretation}</p>
                     </div>
-                </div>
-                <div class="alert alert-info">
-                    <strong>📌 Recomendación:</strong> ${a.recommendation}
                 </div>
             `;
         } else {
-            document.getElementById('resultBody').innerHTML = `
-                <div class="alert alert-warning">
-                    <strong>⚠️ Aviso:</strong> ${data.message}
-                    <br><small>Asegúrate de que ambos activos tengan datos de precio en el sistema.</small>
-                </div>
-            `;
+            resultDiv.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
         }
-        btn.disabled = false;
-        btn.innerHTML = '🔬 Analizar Correlación';
-    })
-    .catch(err => {
-        document.getElementById('result').style.display = 'block';
-        document.getElementById('resultBody').innerHTML = `
-            <div class="alert alert-danger">Error de conexión: ${err}</div>
-        `;
-        btn.disabled = false;
-        btn.innerHTML = '🔬 Analizar Correlación';
-    });
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Analizar Par';
 });
 </script>
 {% endblock %}

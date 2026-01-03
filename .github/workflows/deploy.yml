@@ -4,7 +4,6 @@ on:
     branches: [ main ]
 env:
   PROJECT_ID: mi-proyecto-trading-12345
-  REGION: us-central1
 
 jobs:
   deploy:
@@ -18,15 +17,23 @@ jobs:
 
     - name: Deploy Services
       run: |
-        # 1. Market Data Hub (EUROPA)
-        gcloud run deploy market-data-hub --source ./services/market_data_hub --region europe-west1 --quiet --allow-unauthenticated
+        # 1. Market Data Hub (EUROPA - evita bloqueo 451)
+        gcloud run deploy market-data-hub --source ./services/market_data_hub --region europe-west1 --quiet --allow-unauthenticated --memory 512Mi
         
-        # 2. Dashboard (USA)
-        gcloud run deploy dashboard --source ./dashboard --region us-central1 --quiet --allow-unauthenticated
+        # 2. Historical Data Service (USA)
+        gcloud run deploy historical-data --source ./services/historical_data --region us-central1 --quiet --allow-unauthenticated
         
         # 3. Strategy Agent (USA)
         gcloud run deploy strategy-agent --source ./strategy_agent --region us-central1 --quiet --allow-unauthenticated
         
-        # 4. Motores de Backend (USA)
-        gcloud run deploy pairs-trading-engine --source ./services/pairs-trading --region us-central1 --quiet --allow-unauthenticated
+        # 4. Dashboard (USA)
+        gcloud run deploy dashboard --source ./dashboard --region us-central1 --quiet --allow-unauthenticated
+        
+        # 5. Backtesting Simulator (USA)
         gcloud run deploy backtesting-simulator --source ./services/backtesting-simulator --region us-central1 --quiet --allow-unauthenticated
+        
+        # 6. Pairs Trading Engine (USA)
+        gcloud run deploy pairs-trading-engine --source ./services/pairs-trading --region us-central1 --quiet --allow-unauthenticated
+        
+        # 7. Portfolio Manager (USA)
+        gcloud run deploy portfolio-manager --source ./services/portfolio_manager --region us-central1 --quiet --allow-unauthenticated
