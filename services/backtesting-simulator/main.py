@@ -5,11 +5,11 @@ app = Flask(__name__)
 
 @app.route('/')
 def health():
-    return jsonify({"status": "healthy", "service": "backtesting-simulator"}), 200
+    return "Simulator is Alive", 200
 
 @app.route('/run', methods=['POST'])
-def run_simulation():
-    return jsonify({"message": "Simulación iniciada", "result": "success"}), 200
+def run_backtest():
+    return jsonify({"status": "success", "message": "Simulación iniciada correctamente"}), 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
