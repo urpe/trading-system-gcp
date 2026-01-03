@@ -1,8 +1,62 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-4">
-    <h2>⚖️ Pairs Trading Engine</h2>
-    <p>Monitoreando correlaciones en tiempo real...</p>
-    <div class="alert alert-info">Buscando oportunidades en BTC/ETH...</div>
+    <h1>⚖️ Pairs Trading Engine</h1>
+    <div class="card mb-4">
+        <div class="card-header"><h4>Analizar Par de Activos</h4></div>
+        <div class="card-body">
+            <form id="pairsForm">
+                <div class="row">
+                    <div class="col-md-5">
+                        <label class="form-label">Activo 1</label>
+                        <select class="form-select" id="pair1">
+                            {% for asset in assets %}<option value="{{ asset }}" {% if asset == 'BTC' %}selected{% endif %}>{{ asset }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-center pt-4"><h3>vs</h3></div>
+                    <div class="col-md-5">
+                        <label class="form-label">Activo 2</label>
+                        <select class="form-select" id="pair2">
+                            {% for asset in assets %}<option value="{{ asset }}" {% if asset == 'ETH' %}selected{% endif %}>{{ asset }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3" id="analyzeBtn">Analizar Correlación</button>
+            </form>
+        </div>
+    </div>
+    <div id="result" class="card" style="display:none;">
+        <div class="card-header"><h4>📊 Análisis de Pares</h4></div>
+        <div class="card-body" id="resultBody"></div>
+    </div>
 </div>
+<script>
+document.getElementById('pairsForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    btn.innerText = 'Analizando...';
+    fetch('/api/pairs-analysis', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            pair1: document.getElementById('pair1').value,
+            pair2: document.getElementById('pair2').value
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('result').style.display = 'block';
+        if (data.status === 'success') {
+            const a = data.analysis;
+            const signalClass = a.signal === 'LONG_SPREAD' ? 'bg-success' : a.signal === 'SHORT_SPREAD' ? 'bg-danger' : 'bg-secondary';
+            document.getElementById('resultBody').innerHTML = '<div class="row mb-3"><div class="col-md-6"><div class="card"><div class="card-body text-center"><h5>' + data.pair1.symbol + '</h5><h3>$' + data.pair1.price.toLocaleString() + '</h3></div></div></div><div class="col-md-6"><div class="card"><div class="card-body text-center"><h5>' + data.pair2.symbol + '</h5><h3>$' + data.pair2.price.toLocaleString() + '</h3></div></div></div></div><div class="row"><div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h6>Ratio</h6><h4>' + a.ratio + '</h4></div></div></div><div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h6>Correlación</h6><h4>' + (a.correlation * 100).toFixed(1) + '%</h4></div></div></div><div class="col-md-4"><div class="card ' + signalClass + ' text-white"><div class="card-body text-center"><h6>Señal</h6><h4>' + a.signal + '</h4></div></div></div></div><div class="alert alert-info mt-3"><strong>Recomendación:</strong> ' + a.recommendation + '</div>';
+        } else {
+            document.getElementById('resultBody').innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+        }
+        btn.disabled = false;
+        btn.innerText = 'Analizar Correlación';
+    });
+});
+</script>
 {% endblock %}

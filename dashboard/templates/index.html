@@ -1,15 +1,92 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Resumen del Mercado</h1>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-    {% for item in summary %}
-    <a href="/asset/{{ item.symbol }}" style="text-decoration: none; color: inherit;">
-        <div class="card" style="text-align: center; cursor: pointer;">
-            <h2 style="color: var(--blue);">{{ item.symbol }}</h2>
-            <div style="font-size: 20px; font-weight: bold;">${{ item.price }}</div>
-            <p style="font-size: 12px; color: #8b949e;">Ver historial →</p>
+<div class="container mt-4">
+    <h1>📊 Dashboard de Trading</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5>Activos Monitoreados</h5>
+                    <h2>{{ summary.total_assets }}</h2>
+                </div>
+            </div>
         </div>
-    </a>
-    {% endfor %}
+        <div class="col-md-4">
+            <div class="card {% if summary.avg_change > 0 %}bg-success{% elif summary.avg_change < 0 %}bg-danger{% else %}bg-secondary{% endif %} text-white">
+                <div class="card-body">
+                    <h5>Cambio Promedio 24h</h5>
+                    <h2>{{ summary.avg_change }}%</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5>Estado del Mercado</h5>
+                    <h2>{{ summary.market_status }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>💰 Precios en Tiempo Real</h4>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Activo</th>
+                        <th>Precio (USD)</th>
+                        <th>Cambio 24h</th>
+                        <th>Volumen</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for asset in assets %}
+                    <tr>
+                        <td><strong>{{ asset }}</strong></td>
+                        <td>${{ "%.2f"|format(data[asset].price|default(0)) }}</td>
+                        <td class="{% if data[asset].change|default(0) > 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format(data[asset].change|default(0)) }}%
+                        </td>
+                        <td>{{ "%.0f"|format(data[asset].volume|default(0)) }}</td>
+                        <td><a href="/asset/{{ asset }}" class="btn btn-sm btn-outline-primary">Ver</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h4>🚦 Últimas Señales</h4>
+        </div>
+        <div class="card-body">
+            {% if signals %}
+            <table class="table">
+                <thead>
+                    <tr><th>Activo</th><th>Señal</th><th>Precio</th><th>Razón</th></tr>
+                </thead>
+                <tbody>
+                    {% for signal in signals %}
+                    <tr>
+                        <td>{{ signal.symbol }}</td>
+                        <td><span class="badge {% if signal.signal == 'BUY' %}bg-success{% elif signal.signal == 'SELL' %}bg-danger{% else %}bg-secondary{% endif %}">{{ signal.signal }}</span></td>
+                        <td>${{ "%.2f"|format(signal.price|default(0)) }}</td>
+                        <td>{{ signal.reason }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">No hay señales recientes.</p>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endblock %}

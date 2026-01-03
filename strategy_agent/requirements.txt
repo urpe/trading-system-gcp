@@ -2,5 +2,3 @@ flask
 gunicorn
 google-cloud-pubsub
 google-cloud-firestore
-pandas
-numpy

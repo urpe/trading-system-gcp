@@ -1,36 +1,65 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-4">
-    <div class="card shadow">
-        <div class="card-header bg-primary text-white"><h2>🚀 Panel de Simulación</h2></div>
+    <h1>🚀 Simulador de Estrategias</h1>
+    <div class="card mb-4">
+        <div class="card-header"><h4>Configurar Simulación</h4></div>
         <div class="card-body">
-            <p>Ejecuta un backtesting con datos históricos de BigQuery.</p>
-            <button id="runBtn" class="btn btn-success btn-lg" onclick="runSim()">Lanzar Simulación v5.2</button>
-            <div id="result" class="mt-3"></div>
+            <form id="simForm">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Activo</label>
+                        <select class="form-select" id="symbol">
+                            {% for asset in assets %}<option value="{{ asset }}">{{ asset }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Capital Inicial (USD)</label>
+                        <input type="number" class="form-control" id="capital" value="10000">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Estrategia</label>
+                        <select class="form-select" id="strategy">
+                            <option value="SMA_CROSSOVER">Cruce de Medias Móviles</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3" id="runBtn">Ejecutar Simulación</button>
+            </form>
         </div>
+    </div>
+    <div id="result" class="card" style="display:none;">
+        <div class="card-header"><h4>📊 Resultados</h4></div>
+        <div class="card-body" id="resultBody"></div>
     </div>
 </div>
 <script>
-function runSim() {
+document.getElementById('simForm').addEventListener('submit', function(e) {
+    e.preventDefault();
     const btn = document.getElementById('runBtn');
     btn.disabled = true;
-    btn.innerText = 'Procesando...';
-    
+    btn.innerText = 'Ejecutando...';
     fetch('/api/run-simulation', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({asset: 'BTC', strategy: 'SMA'})
+        body: JSON.stringify({
+            symbol: document.getElementById('symbol').value,
+            capital: parseFloat(document.getElementById('capital').value),
+            strategy: document.getElementById('strategy').value
+        })
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
-        document.getElementById('result').innerHTML = '<div class="alert alert-success">Respuesta del Motor: ' + JSON.stringify(data) + '</div>';
+        document.getElementById('result').style.display = 'block';
+        if (data.status === 'success' || data.status === 'warning') {
+            const r = data.result;
+            document.getElementById('resultBody').innerHTML = '<div class="row"><div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h6>Capital Inicial</h6><h4>$' + r.initial_capital.toLocaleString() + '</h4></div></div></div><div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h6>Capital Final</h6><h4>$' + r.final_capital.toLocaleString() + '</h4></div></div></div><div class="col-md-3"><div class="card ' + (r.profit >= 0 ? 'bg-success' : 'bg-danger') + ' text-white"><div class="card-body text-center"><h6>Ganancia</h6><h4>' + (r.profit >= 0 ? '+' : '') + '$' + r.profit.toLocaleString() + ' (' + r.profit_pct + '%)</h4></div></div></div><div class="col-md-3"><div class="card bg-info text-white"><div class="card-body text-center"><h6>Operaciones</h6><h4>' + r.total_trades + '</h4></div></div></div></div><p class="mt-3 text-muted">Señales analizadas: ' + r.signals_analyzed + '</p>' + (data.message ? '<div class="alert alert-warning mt-2">' + data.message + '</div>' : '');
+        } else {
+            document.getElementById('resultBody').innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+        }
         btn.disabled = false;
-        btn.innerText = 'Lanzar Simulación v5.2';
-    })
-    .catch(err => {
-        document.getElementById('result').innerHTML = '<div class="alert alert-danger">Error: ' + err + '</div>';
-        btn.disabled = false;
+        btn.innerText = 'Ejecutar Simulación';
     });
-}
+});
 </script>
 {% endblock %}
