@@ -2,43 +2,101 @@
 {% block content %}
 <div class="container mt-4">
     <h1>🚀 Simulador de Estrategias</h1>
+    <p class="text-muted mb-4">Prueba estrategias de trading con datos históricos de señales</p>
+    
+    <!-- Leyenda de Estrategias -->
+    <div class="card mb-4 bg-light">
+        <div class="card-header">
+            <h5 class="mb-0">📖 Guía de Estrategias</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6><strong>Cruce de Medias Móviles (SMA)</strong></h6>
+                    <p class="small">Compra cuando la media móvil corta (5 períodos) cruza por encima de la larga (20 períodos). Vende cuando cruza por debajo.</p>
+                </div>
+                <div class="col-md-4">
+                    <h6><strong>RSI (Próximamente)</strong></h6>
+                    <p class="small text-muted">Compra cuando RSI < 30 (sobreventa). Vende cuando RSI > 70 (sobrecompra).</p>
+                </div>
+                <div class="col-md-4">
+                    <h6><strong>MACD (Próximamente)</strong></h6>
+                    <p class="small text-muted">Compra cuando MACD cruza por encima de la línea de señal. Vende en el cruce inverso.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Formulario de Simulación -->
     <div class="card mb-4">
-        <div class="card-header"><h4>Configurar Simulación</h4></div>
+        <div class="card-header">
+            <h4>⚙️ Configurar Simulación</h4>
+        </div>
         <div class="card-body">
             <form id="simForm">
                 <div class="row">
                     <div class="col-md-4">
-                        <label class="form-label">Activo</label>
+                        <label class="form-label">Activo a Simular</label>
                         <select class="form-select" id="symbol">
-                            {% for asset in assets %}<option value="{{ asset }}">{{ asset }}</option>{% endfor %}
+                            {% for asset in assets %}
+                            <option value="{{ asset }}">{{ asset }}/USDT</option>
+                            {% endfor %}
                         </select>
+                        <small class="text-muted">Selecciona el par de trading</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Capital Inicial (USD)</label>
-                        <input type="number" class="form-control" id="capital" value="10000">
+                        <input type="number" class="form-control" id="capital" value="10000" min="100" step="100">
+                        <small class="text-muted">Monto inicial para la simulación</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Estrategia</label>
                         <select class="form-select" id="strategy">
-                            <option value="SMA_CROSSOVER">Cruce de Medias Móviles</option>
+                            <option value="SMA_CROSSOVER">Cruce de Medias Móviles (SMA)</option>
+                            <option value="RSI" disabled>RSI (Próximamente)</option>
+                            <option value="MACD" disabled>MACD (Próximamente)</option>
                         </select>
+                        <small class="text-muted">Algoritmo de decisión</small>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary mt-3" id="runBtn">Ejecutar Simulación</button>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary btn-lg" id="runBtn">
+                        ▶️ Ejecutar Simulación
+                    </button>
+                </div>
             </form>
         </div>
     </div>
+    
+    <!-- Resultados -->
     <div id="result" class="card" style="display:none;">
-        <div class="card-header"><h4>📊 Resultados</h4></div>
+        <div class="card-header bg-dark text-white">
+            <h4 class="mb-0">📊 Resultados de la Simulación</h4>
+        </div>
         <div class="card-body" id="resultBody"></div>
     </div>
+    
+    <!-- Explicación -->
+    <div class="card mt-4 border-info">
+        <div class="card-body">
+            <h5>💡 ¿Cómo funciona?</h5>
+            <ol>
+                <li>El simulador obtiene todas las señales históricas del activo seleccionado desde Firestore.</li>
+                <li>Simula compras cuando la señal es "BUY" y ventas cuando es "SELL".</li>
+                <li>Calcula el rendimiento final comparando el capital inicial con el final.</li>
+                <li><strong>Nota:</strong> Los resultados pasados no garantizan rendimientos futuros.</li>
+            </ol>
+        </div>
+    </div>
 </div>
+
 <script>
 document.getElementById('simForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const btn = document.getElementById('runBtn');
     btn.disabled = true;
-    btn.innerText = 'Ejecutando...';
+    btn.innerHTML = '⏳ Ejecutando...';
+    
     fetch('/api/run-simulation', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -53,12 +111,68 @@ document.getElementById('simForm').addEventListener('submit', function(e) {
         document.getElementById('result').style.display = 'block';
         if (data.status === 'success' || data.status === 'warning') {
             const r = data.result;
-            document.getElementById('resultBody').innerHTML = '<div class="row"><div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h6>Capital Inicial</h6><h4>$' + r.initial_capital.toLocaleString() + '</h4></div></div></div><div class="col-md-3"><div class="card bg-light"><div class="card-body text-center"><h6>Capital Final</h6><h4>$' + r.final_capital.toLocaleString() + '</h4></div></div></div><div class="col-md-3"><div class="card ' + (r.profit >= 0 ? 'bg-success' : 'bg-danger') + ' text-white"><div class="card-body text-center"><h6>Ganancia</h6><h4>' + (r.profit >= 0 ? '+' : '') + '$' + r.profit.toLocaleString() + ' (' + r.profit_pct + '%)</h4></div></div></div><div class="col-md-3"><div class="card bg-info text-white"><div class="card-body text-center"><h6>Operaciones</h6><h4>' + r.total_trades + '</h4></div></div></div></div><p class="mt-3 text-muted">Señales analizadas: ' + r.signals_analyzed + '</p>' + (data.message ? '<div class="alert alert-warning mt-2">' + data.message + '</div>' : '');
+            const profitClass = r.profit >= 0 ? 'bg-success' : 'bg-danger';
+            const profitIcon = r.profit >= 0 ? '📈' : '📉';
+            
+            document.getElementById('resultBody').innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <small class="text-muted">Capital Inicial</small>
+                                <h4>$${r.initial_capital.toLocaleString()}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <small class="text-muted">Capital Final</small>
+                                <h4>$${r.final_capital.toLocaleString()}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card ${profitClass} text-white">
+                            <div class="card-body text-center">
+                                <small>Ganancia/Pérdida</small>
+                                <h4>${profitIcon} ${r.profit >= 0 ? '+' : ''}$${r.profit.toLocaleString()}</h4>
+                                <small>(${r.profit_pct}%)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <small>Operaciones</small>
+                                <h4>${r.total_trades}</h4>
+                                <small>trades ejecutados</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-secondary">
+                    <strong>📊 Resumen:</strong> Se analizaron <strong>${r.signals_analyzed}</strong> señales históricas.
+                    ${data.message ? '<br><em>' + data.message + '</em>' : ''}
+                </div>
+            `;
         } else {
-            document.getElementById('resultBody').innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+            document.getElementById('resultBody').innerHTML = `
+                <div class="alert alert-danger">
+                    <strong>Error:</strong> ${data.message || 'Error desconocido'}
+                </div>
+            `;
         }
         btn.disabled = false;
-        btn.innerText = 'Ejecutar Simulación';
+        btn.innerHTML = '▶️ Ejecutar Simulación';
+    })
+    .catch(err => {
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('resultBody').innerHTML = `
+            <div class="alert alert-danger">Error de conexión: ${err}</div>
+        `;
+        btn.disabled = false;
+        btn.innerHTML = '▶️ Ejecutar Simulación';
     });
 });
 </script>

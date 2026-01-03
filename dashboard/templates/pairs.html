@@ -2,60 +2,173 @@
 {% block content %}
 <div class="container mt-4">
     <h1>⚖️ Pairs Trading Engine</h1>
+    <p class="text-muted mb-4">Analiza correlaciones entre pares de activos para encontrar oportunidades de arbitraje</p>
+    
+    <!-- Explicación -->
+    <div class="card mb-4 bg-light">
+        <div class="card-header">
+            <h5 class="mb-0">📖 ¿Qué es Pairs Trading?</h5>
+        </div>
+        <div class="card-body">
+            <p>El <strong>Pairs Trading</strong> es una estrategia de trading neutral al mercado que consiste en:</p>
+            <ol>
+                <li>Identificar dos activos altamente correlacionados (ej: BTC y ETH)</li>
+                <li>Cuando el ratio entre ellos se desvía de su media histórica, abrir posiciones opuestas</li>
+                <li>Cerrar cuando el ratio vuelve a la normalidad</li>
+            </ol>
+            <p class="mb-0"><strong>Señales:</strong></p>
+            <ul class="mb-0">
+                <li><span class="badge bg-success">LONG_SPREAD</span> = Comprar Activo 1, Vender Activo 2</li>
+                <li><span class="badge bg-danger">SHORT_SPREAD</span> = Vender Activo 1, Comprar Activo 2</li>
+                <li><span class="badge bg-secondary">NEUTRAL</span> = Mantener posición actual</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Formulario -->
     <div class="card mb-4">
-        <div class="card-header"><h4>Analizar Par de Activos</h4></div>
+        <div class="card-header">
+            <h4>🔍 Analizar Par de Activos</h4>
+        </div>
         <div class="card-body">
             <form id="pairsForm">
-                <div class="row">
-                    <div class="col-md-5">
-                        <label class="form-label">Activo 1</label>
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">Activo 1 (Long)</label>
                         <select class="form-select" id="pair1">
-                            {% for asset in assets %}<option value="{{ asset }}" {% if asset == 'BTC' %}selected{% endif %}>{{ asset }}</option>{% endfor %}
+                            {% for asset in assets %}
+                            <option value="{{ asset }}" {% if asset == 'BTC' %}selected{% endif %}>{{ asset }}/USDT</option>
+                            {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-2 text-center pt-4"><h3>vs</h3></div>
-                    <div class="col-md-5">
-                        <label class="form-label">Activo 2</label>
+                    <div class="col-md-1 text-center">
+                        <h3 class="mb-0">↔️</h3>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Activo 2 (Short)</label>
                         <select class="form-select" id="pair2">
-                            {% for asset in assets %}<option value="{{ asset }}" {% if asset == 'ETH' %}selected{% endif %}>{{ asset }}</option>{% endfor %}
+                            {% for asset in assets %}
+                            <option value="{{ asset }}" {% if asset == 'ETH' %}selected{% endif %}>{{ asset }}/USDT</option>
+                            {% endfor %}
                         </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary w-100" id="analyzeBtn">
+                            🔬 Analizar Correlación
+                        </button>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary mt-3" id="analyzeBtn">Analizar Correlación</button>
             </form>
         </div>
     </div>
+    
+    <!-- Resultados -->
     <div id="result" class="card" style="display:none;">
-        <div class="card-header"><h4>📊 Análisis de Pares</h4></div>
+        <div class="card-header bg-dark text-white">
+            <h4 class="mb-0">📊 Análisis de Correlación</h4>
+        </div>
         <div class="card-body" id="resultBody"></div>
     </div>
 </div>
+
 <script>
 document.getElementById('pairsForm').addEventListener('submit', function(e) {
     e.preventDefault();
+    
+    const pair1 = document.getElementById('pair1').value;
+    const pair2 = document.getElementById('pair2').value;
+    
+    if (pair1 === pair2) {
+        alert('Por favor selecciona dos activos diferentes');
+        return;
+    }
+    
     const btn = document.getElementById('analyzeBtn');
     btn.disabled = true;
-    btn.innerText = 'Analizando...';
+    btn.innerHTML = '⏳ Analizando...';
+    
     fetch('/api/pairs-analysis', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            pair1: document.getElementById('pair1').value,
-            pair2: document.getElementById('pair2').value
-        })
+        body: JSON.stringify({ pair1: pair1, pair2: pair2 })
     })
     .then(r => r.json())
     .then(data => {
         document.getElementById('result').style.display = 'block';
         if (data.status === 'success') {
             const a = data.analysis;
-            const signalClass = a.signal === 'LONG_SPREAD' ? 'bg-success' : a.signal === 'SHORT_SPREAD' ? 'bg-danger' : 'bg-secondary';
-            document.getElementById('resultBody').innerHTML = '<div class="row mb-3"><div class="col-md-6"><div class="card"><div class="card-body text-center"><h5>' + data.pair1.symbol + '</h5><h3>$' + data.pair1.price.toLocaleString() + '</h3></div></div></div><div class="col-md-6"><div class="card"><div class="card-body text-center"><h5>' + data.pair2.symbol + '</h5><h3>$' + data.pair2.price.toLocaleString() + '</h3></div></div></div></div><div class="row"><div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h6>Ratio</h6><h4>' + a.ratio + '</h4></div></div></div><div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h6>Correlación</h6><h4>' + (a.correlation * 100).toFixed(1) + '%</h4></div></div></div><div class="col-md-4"><div class="card ' + signalClass + ' text-white"><div class="card-body text-center"><h6>Señal</h6><h4>' + a.signal + '</h4></div></div></div></div><div class="alert alert-info mt-3"><strong>Recomendación:</strong> ' + a.recommendation + '</div>';
+            const signalClass = a.signal === 'LONG_SPREAD' ? 'bg-success' : 
+                               a.signal === 'SHORT_SPREAD' ? 'bg-danger' : 'bg-secondary';
+            
+            document.getElementById('resultBody').innerHTML = `
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <h5 class="text-primary">${data.pair1.symbol}/USDT</h5>
+                                <h2>$${data.pair1.price.toLocaleString()}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-info">
+                            <div class="card-body text-center">
+                                <h5 class="text-info">${data.pair2.symbol}/USDT</h5>
+                                <h2>$${data.pair2.price.toLocaleString()}</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <small class="text-muted">Ratio Actual</small>
+                                <h4>${a.ratio}</h4>
+                                <small>${data.pair1.symbol}/${data.pair2.symbol}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <small class="text-muted">Correlación</small>
+                                <h4>${(a.correlation * 100).toFixed(1)}%</h4>
+                                <small>Histórica</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card ${signalClass} text-white">
+                            <div class="card-body text-center">
+                                <small>Señal</small>
+                                <h4>${a.signal}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info">
+                    <strong>📌 Recomendación:</strong> ${a.recommendation}
+                </div>
+            `;
         } else {
-            document.getElementById('resultBody').innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+            document.getElementById('resultBody').innerHTML = `
+                <div class="alert alert-warning">
+                    <strong>⚠️ Aviso:</strong> ${data.message}
+                    <br><small>Asegúrate de que ambos activos tengan datos de precio en el sistema.</small>
+                </div>
+            `;
         }
         btn.disabled = false;
-        btn.innerText = 'Analizar Correlación';
+        btn.innerHTML = '🔬 Analizar Correlación';
+    })
+    .catch(err => {
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('resultBody').innerHTML = `
+            <div class="alert alert-danger">Error de conexión: ${err}</div>
+        `;
+        btn.disabled = false;
+        btn.innerHTML = '🔬 Analizar Correlación';
     });
 });
 </script>
