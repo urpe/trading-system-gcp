@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  market-data:
+    build: .
+    container_name: bot_ojos
+    command: python3 services/market_data_hub/main.py
+    env_file: .env
+    restart: always
+
+  historical-data:
+    build: .
+    container_name: bot_historia
+    command: python3 services/historical_data/main.py
+    env_file: .env
+    ports:
+      - "5002:5000"
+    restart: always
+
+  strategy:
+    build: .
+    container_name: bot_cerebro
+    command: python3 strategy_agent/main.py
+    env_file: .env
+    ports:
+      - "5000:5000"
+    restart: always
+    depends_on:
+      - market-data
+
+  pairs-trading:
+    build: .
+    container_name: bot_pares
+    command: python3 services/pairs-trading/main.py
+    env_file: .env
+    restart: always
+
+  orders:
+    build: .
+    container_name: bot_manos
+    command: python3 order_agent/main.py
+    env_file: .env
+    ports:
+      - "5001:5001"
+    restart: always
+    depends_on:
+      - strategy
+
+  portfolio:
+    build: .
+    container_name: bot_contador
+    command: python3 services/portfolio_manager/main.py
+    env_file: .env
+    restart: always
+
+  dashboard:
+    build: .
+    container_name: bot_cara
+    command: python3 dashboard/main.py
+    env_file: .env
+    ports:
+      - "8050:8050"
+    restart: always
+    depends_on:
+      - historical-data
+      - strategy
+      - simulator
+      - pairs-trading
+
+  simulator:
+    build: .
+    container_name: bot_simulador
+    command: python3 services/backtesting-simulator/main.py
+    env_file: .env
+    restart: always
+
+  alerts:
+    build: .
+    container_name: bot_alertas
+    command: python3 alert_service/main.py
+    env_file: .env
+    restart: always

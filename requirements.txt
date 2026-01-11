@@ -1,0 +1,12 @@
+pandas
+numpy
+requests
+ccxt
+python-dotenv
+schedule
+websockets
+asyncio
+google-cloud-firestore
+google-cloud-pubsub
+flask
+python-binance

@@ -8,9 +8,9 @@ PROJECT_ID = os.environ.get("PROJECT_ID", "mi-proyecto-trading-12345")
 db = firestore.Client(project=PROJECT_ID)
 
 # URLs de los servicios (actualizadas para v7.0)
-SIMULATOR_URL = os.environ.get("SIMULATOR_URL", "https://backtesting-simulator-347366802960.us-central1.run.app")
-PAIRS_URL = os.environ.get("PAIRS_URL", "https://pairs-trading-engine-347366802960.us-central1.run.app")
-HISTORICAL_URL = os.environ.get("HISTORICAL_URL", "https://historical-data-347366802960.us-central1.run.app")
+SIMULATOR_URL = os.environ.get("SIMULATOR_URL", "http://simulator:5000")
+PAIRS_URL = os.environ.get("PAIRS_URL", "http://pairs-trading:5000")
+HISTORICAL_URL = os.environ.get("HISTORICAL_URL", "http://historical-data:5000")
 
 # Lista expandida de activos (50 monedas)
 ASSETS = [
@@ -104,5 +104,5 @@ def load_historical(symbol):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get('PORT', 8050))
     app.run(host='0.0.0.0', port=port)
