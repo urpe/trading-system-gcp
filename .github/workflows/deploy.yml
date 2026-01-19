@@ -8,32 +8,47 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
     steps:
     - uses: actions/checkout@v3
+
     - id: auth
       uses: google-github-actions/auth@v1
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+
     - name: Deploy Services
       run: |
-        # 1. Market Data Hub (EUROPA - evita bloqueo 451)
-        gcloud run deploy market-data-hub --source ./services/market_data_hub --region europe-west1 --quiet --allow-unauthenticated --memory 512Mi
+        # 1. Market Data Hub (Ojos - EUROPA para evitar error 451)
+        # Ruta actualizada: src/services/market_data
+        gcloud run deploy market-data-hub --source ./src/services/market_data --region europe-west1 --quiet --allow-unauthenticated --memory 512Mi
         
-        # 2. Historical Data Service (USA)
-        gcloud run deploy historical-data --source ./services/historical_data --region us-central1 --quiet --allow-unauthenticated
+        # 2. Historical Data (Memoria - USA)
+        # Ruta actualizada: src/services/historical
+        gcloud run deploy historical-data --source ./src/services/historical --region us-central1 --quiet --allow-unauthenticated
         
-        # 3. Strategy Agent (USA)
-        gcloud run deploy strategy-agent --source ./strategy_agent --region us-central1 --quiet --allow-unauthenticated
+        # 3. Strategy Agent (Cerebro - USA)
+        # Ruta actualizada: src/agents/strategy
+        gcloud run deploy strategy-agent --source ./src/agents/strategy --region us-central1 --quiet --allow-unauthenticated
         
-        # 4. Dashboard (USA)
-        gcloud run deploy dashboard --source ./dashboard --region us-central1 --quiet --allow-unauthenticated
+        # 4. Orders Agent (Manos - USA)
+        # REEMPLAZA al antiguo portfolio-manager. Ruta: src/agents/orders
+        gcloud run deploy orders-agent --source ./src/agents/orders --region us-central1 --quiet --allow-unauthenticated
         
-        # 5. Backtesting Simulator (USA)
-        gcloud run deploy backtesting-simulator --source ./services/backtesting-simulator --region us-central1 --quiet --allow-unauthenticated
+        # 5. Dashboard (Cara - USA)
+        # Ruta actualizada: src/dashboard
+        gcloud run deploy dashboard --source ./src/dashboard --region us-central1 --quiet --allow-unauthenticated
         
-        # 6. Pairs Trading Engine (USA)
-        gcloud run deploy pairs-trading-engine --source ./services/pairs-trading --region us-central1 --quiet --allow-unauthenticated
+        # 6. Simulator (Entrenamiento - USA)
+        # Ruta actualizada: src/services/simulator
+        gcloud run deploy backtesting-simulator --source ./src/services/simulator --region us-central1 --quiet --allow-unauthenticated
         
-        # 7. Portfolio Manager (USA)
-        gcloud run deploy portfolio-manager --source ./services/portfolio_manager --region us-central1 --quiet --allow-unauthenticated
+        # 7. Pairs Trading (Motor Secundario - USA)
+        # Ruta actualizada: src/services/pairs
+        gcloud run deploy pairs-trading-engine --source ./src/services/pairs --region us-central1 --quiet --allow-unauthenticated
