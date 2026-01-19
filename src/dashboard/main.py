@@ -42,7 +42,6 @@ def get_wallet_info():
         for doc in portfolio_docs:
             pos = doc.to_dict()
             # Calcular valor actual basado en precio de mercado (si existe en market_data)
-            # Para simplificar, usamos el 'current_price' guardado o el avg
             value = pos['amount'] * pos.get('current_price', pos['avg_price'])
             total_portfolio_value += value
             positions.append(pos)
@@ -64,7 +63,7 @@ def get_wallet_info():
 @app.route('/')
 def index():
     data, active_assets = get_active_assets()
-    wallet_info = get_wallet_info() # <--- NUEVO
+    wallet_info = get_wallet_info()
     
     # Resumen Mercado
     total_change = sum([d.get('change', 0) for d in data.values()])
@@ -78,14 +77,12 @@ def index():
     signals = [s.to_dict() for s in signals_ref.stream()]
     
     return render_template('index.html', 
-                         data=data, 
-                         summary=summary, 
-                         signals=signals, 
-                         assets=active_assets,
-                         wallet=wallet_info) # <--- PASAMOS LA BILLETERA AL HTML
+                           data=data, 
+                           summary=summary, 
+                           signals=signals, 
+                           assets=active_assets,
+                           wallet=wallet_info)
 
-# ... (El resto de rutas /asset, /simulator, /api... se queda igual) ...
-# Solo asegúrate de mantener las rutas existentes abajo
 @app.route('/asset/<symbol>')
 def asset_view(symbol):
     symbol = symbol.upper()
@@ -102,21 +99,28 @@ def simulator_view():
 
 @app.route('/pairs')
 def pairs_view():
+    """Vista de Arbitraje Estadístico - Lee directamente de Firestore"""
     _, active_assets = get_active_assets()
-    return render_template('pairs.html', assets=active_assets)
+    
+    try:
+        # Buscamos señales tipo 'PAIR_TRADE' generadas automáticamente
+        signals_ref = db.collection('signals')\
+                        .where('type', '==', 'PAIR_TRADE')\
+                        .order_by('timestamp', direction=firestore.Query.DESCENDING)\
+                        .limit(20)
+        
+        pair_signals = [s.to_dict() for s in signals_ref.stream()]
+        
+    except Exception as e:
+        print(f"Error leyendo pares: {e}")
+        pair_signals = []
+
+    return render_template('pairs.html', assets=active_assets, signals=pair_signals)
 
 @app.route('/api/run-simulation', methods=['POST'])
 def run_simulation():
     try:
         resp = requests.post(f"{SIMULATOR_URL}/run", json=request.json, timeout=30)
-        return jsonify(resp.json()), resp.status_code
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/pairs-analysis', methods=['POST'])
-def pairs_analysis():
-    try:
-        resp = requests.post(f"{PAIRS_URL}/analyze", json=request.json, timeout=10)
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
