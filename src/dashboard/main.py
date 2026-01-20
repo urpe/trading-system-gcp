@@ -28,31 +28,52 @@ def get_active_assets():
         return {}, []
 
 def get_wallet_info():
-    """Obtiene el estado de la cuenta y portafolio"""
+    """Obtiene el estado de la cuenta y portafolio (Soporte Short)"""
     try:
-        # 1. Saldo USDT
+        # 1. Saldo USDT (Efectivo)
         wallet_doc = db.collection('wallet').document('main_account').get()
         wallet = wallet_doc.to_dict() if wallet_doc.exists else {'usdt_balance': 10000, 'initial_capital': 10000}
         
-        # 2. Posiciones (Monedas compradas)
+        # 2. Posiciones
         portfolio_docs = db.collection('portfolio').stream()
         positions = []
-        total_portfolio_value = 0
+        total_equity = wallet['usdt_balance'] # Patrimonio empieza con el efectivo
         
         for doc in portfolio_docs:
             pos = doc.to_dict()
-            # Calcular valor actual basado en precio de mercado (si existe en market_data)
-            value = pos['amount'] * pos.get('current_price', pos['avg_price'])
-            total_portfolio_value += value
+            amount = pos.get('amount', 0)
+            
+            # Si la cantidad es casi 0, ignorar (basura flotante)
+            if abs(amount) < 0.000001:
+                continue
+
+            current_price = pos.get('current_price', pos.get('avg_price', 0))
+            
+            # Valor de la posición (Puede ser negativo si es Short)
+            # Ejemplo: -1 BTC * $90,000 = -$90,000 (Deuda)
+            position_value = amount * current_price
+            
+            # PNL No realizado de esta posición
+            # Long: (Precio Actual - Promedio) * Cantidad
+            # Short: (Precio Promedio - Actual) * Abs(Cantidad) -> simplificado es lo mismo:
+            unrealized_pnl = (current_price - pos['avg_price']) * amount
+
+            # Añadir datos calculados para el HTML
+            pos['current_value'] = position_value
+            pos['unrealized_pnl'] = unrealized_pnl
+            pos['type'] = 'SHORT' if amount < 0 else 'LONG'
+            
+            total_equity += position_value
             positions.append(pos)
             
-        total_balance = wallet['usdt_balance'] + total_portfolio_value
-        pnl = total_balance - wallet.get('initial_capital', 10000)
-        pnl_percent = (pnl / wallet.get('initial_capital', 10000)) * 100
+        # PNL Total de la cuenta
+        initial_capital = wallet.get('initial_capital', 10000)
+        total_pnl = total_equity - initial_capital
+        pnl_percent = (total_pnl / initial_capital) * 100
         
         return {
             'usdt': wallet['usdt_balance'],
-            'total_balance': total_balance,
+            'total_balance': total_equity, # Equity Real
             'pnl_percent': pnl_percent,
             'positions': positions
         }
@@ -83,6 +104,7 @@ def index():
                            assets=active_assets,
                            wallet=wallet_info)
 
+# ... (Resto de rutas igual: /asset, /simulator, /pairs, /api ...)
 @app.route('/asset/<symbol>')
 def asset_view(symbol):
     symbol = symbol.upper()
@@ -99,22 +121,15 @@ def simulator_view():
 
 @app.route('/pairs')
 def pairs_view():
-    """Vista de Arbitraje Estadístico - Lee directamente de Firestore"""
     _, active_assets = get_active_assets()
-    
     try:
-        # Buscamos señales tipo 'PAIR_TRADE' generadas automáticamente
         signals_ref = db.collection('signals')\
                         .where('type', '==', 'PAIR_TRADE')\
                         .order_by('timestamp', direction=firestore.Query.DESCENDING)\
                         .limit(20)
-        
         pair_signals = [s.to_dict() for s in signals_ref.stream()]
-        
-    except Exception as e:
-        print(f"Error leyendo pares: {e}")
+    except Exception:
         pair_signals = []
-
     return render_template('pairs.html', assets=active_assets, signals=pair_signals)
 
 @app.route('/api/run-simulation', methods=['POST'])

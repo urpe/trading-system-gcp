@@ -1,180 +1,200 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard Pro | Trading System v9.3{% endblock %}
+{% block title %}Dashboard Pro | Hedge Fund V10.2{% endblock %}
 
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <div class="container-fluid px-4">
     
-    <h2 class="mt-4">Dashboard General</h2>
-    <ol class="breadcrumb mb-4">
-        <li class="breadcrumb-item active">Visión General del Mercado y Cartera</li>
-    </ol>
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <h2>🚀 Centro de Comando</h2>
+        <span class="badge bg-secondary">v10.2 Stable</span>
+    </div>
 
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card bg-dark text-white border-warning shadow">
-                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">💰 Mi Billetera (Paper Trading)</h5>
-                    <span class="badge bg-dark text-warning">En Vivo</span>
-                </div>
+    <div class="row mt-4">
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2 bg-dark text-white">
                 <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-4 mb-3 mb-md-0">
-                            <h6 class="text-secondary">Capital Inicial</h6>
-                            <h3>$10,000.00</h3>
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Patrimonio Total (Equity)</div>
+                            <div class="h2 mb-0 font-weight-bold text-white">
+                                ${{ "{:,.2f}".format(wallet.total_balance) }}
+                            </div>
+                            <div class="mt-2">
+                                <small class="{{ 'text-success' if wallet.pnl_percent >= 0 else 'text-danger' }}">
+                                    PNL: {{ "{:,.2f}".format(wallet.pnl_percent) }}%
+                                </small>
+                            </div>
                         </div>
-                        
-                        <div class="col-md-4 mb-3 mb-md-0">
-                            <h6 class="text-secondary">Saldo Total Actual</h6>
-                            <h2 class="fw-bold text-success">
-                                ${{ wallet.total_balance | round(2) if wallet else '0.00' }}
-                            </h2>
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <h6 class="text-secondary">Retorno (PNL)</h6>
-                            <h3 class="{{ 'text-success' if wallet and wallet.pnl_percent >= 0 else 'text-danger' }}">
-                                {{ wallet.pnl_percent | round(2) if wallet else '0.00' }}%
-                            </h3>
+                        <div class="col-auto">
+                            <i class="fas fa-wallet fa-2x text-gray-300"></i>
                         </div>
                     </div>
-                    
-                    <hr class="border-secondary my-3">
-                    
-                    <h6 class="text-muted mb-3">Posiciones Abiertas:</h6>
-                    <div class="table-responsive">
-                        <table class="table table-dark table-sm table-hover mb-0">
-                            <thead>
-                                <tr class="text-secondary">
-                                    <th>Moneda</th>
-                                    <th>Cantidad</th>
-                                    <th>Precio Promedio</th>
-                                    <th>Valor Actual</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% if wallet and wallet.positions %}
-                                    {% for pos in wallet.positions %}
-                                    <tr>
-                                        <td class="fw-bold text-warning">{{ pos.symbol }}</td>
-                                        <td>{{ pos.amount | round(6) }}</td>
-                                        <td>${{ pos.avg_price | round(2) }}</td>
-                                        <td>${{ (pos.amount * pos.current_price) | round(2) }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="4" class="text-center text-muted py-3">
-                                            <em>Sin posiciones abiertas. El bot está buscando oportunidades...</em>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Efectivo Disponible (USDT)</div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800">
+                                ${{ "{:,.2f}".format(wallet.usdt) }}
+                            </div>
+                            <div class="row no-gutters align-items-center mt-2">
+                                <div class="col-auto">
+                                    <div class="h6 mb-0 mr-3 font-weight-bold text-gray-800">Uso de Capital: {{ (100 - (wallet.usdt / wallet.total_balance * 100)) | round(1) }}%</div>
+                                </div>
+                                <div class="col">
+                                    <div class="progress progress-sm mr-2">
+                                        <div class="progress-bar bg-info" role="progressbar" 
+                                             style="width: {{ 100 - (wallet.usdt / wallet.total_balance * 100) }}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-12 mb-4">
+            <div class="card shadow h-100 py-2">
+                <div class="card-body">
+                    <h6 class="m-0 font-weight-bold text-primary mb-2">Distribución de Activos</h6>
+                    <div style="height: 120px;">
+                        <canvas id="allocationChart"></canvas>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-0">📊 Resumen del Mercado</h5>
-                    </div>
-                    <span class="badge bg-primary">
-                        {{ summary.active_assets }} activos activos
-                    </span>
-                </div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-3 mb-3">
-                            <div class="p-3 bg-light rounded border">
-                                <small class="text-muted d-block">Activos Monitoreados</small>
-                                <h3 class="fw-bold text-dark">{{ summary.total_assets }}</h3>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="p-3 bg-light rounded border">
-                                <small class="text-muted d-block">Cambio Promedio 24h</small>
-                                <h3 class="fw-bold {% if summary.avg_change >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                    {{ "%.2f"|format(summary.avg_change) }}%
-                                </h3>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="p-3 bg-light rounded border">
-                                <small class="text-muted d-block">Estado del Mercado</small>
-                                <h3 class="fw-bold">
-                                    {% if summary.avg_change > 2 %}
-                                        <span class="text-success">🚀 Alcista</span>
-                                    {% elif summary.avg_change < -2 %}
-                                        <span class="text-danger">📉 Bajista</span>
-                                    {% else %}
-                                        <span class="text-warning">➡️ Neutral</span>
-                                    {% endif %}
-                                </h3>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="p-3 bg-light rounded border">
-                                <small class="text-muted d-block">Señales Recientes</small>
-                                <h3 class="fw-bold text-info">{{ signals|length }}</h3>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 bg-white d-flex justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">📊 Posiciones Abiertas</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Moneda</th>
+                            <th>Tamaño</th>
+                            <th>Entrada</th>
+                            <th>Actual</th>
+                            <th>Valor Total</th>
+                            <th>Ganancia/Pérdida</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if wallet and wallet.positions %}
+                            {% for pos in wallet.positions %}
+                            <tr>
+                                <td>
+                                    <span class="badge {{ 'bg-success' if pos.type == 'LONG' else 'bg-danger' }}">
+                                        {{ pos.type }}
+                                    </span>
+                                </td>
+                                <td class="fw-bold">{{ pos.symbol }}</td>
+                                <td>{{ pos.amount | round(6) }}</td>
+                                <td>${{ "{:,.2f}".format(pos.avg_price) }}</td>
+                                <td>${{ "{:,.2f}".format(pos.current_price) }}</td>
+                                <td class="fw-bold text-dark">
+                                    ${{ "{:,.2f}".format(pos.current_value) }}
+                                </td>
+                                <td class="{{ 'text-success' if pos.unrealized_pnl >= 0 else 'text-danger' }} fw-bold">
+                                    ${{ "{:,.2f}".format(pos.unrealized_pnl) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    Sin posiciones activas.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var ctx = document.getElementById("allocationChart");
+            if (ctx) {
+                var usdt = {{ wallet.usdt }};
+                var positions = [
+                    {% for pos in wallet.positions %}
+                        { label: "{{ pos.symbol }}", value: Math.abs({{ pos.current_value }}) },
+                    {% endfor %}
+                ];
+                
+                var labels = ["USDT (Cash)"];
+                var data = [usdt];
+                var colors = ["#1cc88a"]; // Verde para cash
+                
+                positions.forEach(function(p) {
+                    labels.push(p.label);
+                    data.push(p.value);
+                    colors.push("#4e73df"); // Azul para activos
+                });
+
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: colors,
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
 
     <div class="row">
         <div class="col-lg-8 mb-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0">💰 Precios en Tiempo Real</h5>
+                    <h5 class="mb-0">Mercado en Vivo</h5>
                 </div>
                 <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th>Activo</th>
-                                    <th>Precio (USD)</th>
-                                    <th>Cambio 24h</th>
-                                    <th>Volumen</th>
-                                    <th>Acción</th>
-                                </tr>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover mb-0 table-sm">
+                            <thead>
+                                <tr><th>Activo</th><th>Precio</th><th>24h %</th></tr>
                             </thead>
                             <tbody>
                                 {% for asset, info in data.items() %}
                                 <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <span class="fw-bold">{{ asset }}</span>
-                                            <span class="text-muted small ms-1">/USDT</span>
-                                        </div>
-                                    </td>
+                                    <td><b>{{ asset }}</b></td>
                                     <td>${{ "%.2f"|format(info.price|default(0)) }}</td>
                                     <td>
-                                        <span class="badge {% if info.change|default(0) >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                        <span class="badge {% if info.change >= 0 %}bg-success{% else %}bg-danger{% endif %}">
                                             {{ "%.2f"|format(info.change|default(0)) }}%
                                         </span>
-                                    </td>
-                                    <td class="text-muted">{{ "%.0f"|format(info.volume|default(0)) }}</td>
-                                    <td>
-                                        <a href="/asset/{{ asset }}" class="btn btn-sm btn-outline-primary">
-                                            Ver Gráfica
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
-                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                                        <span class="ms-2">Esperando datos del Market Data Hub...</span>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -187,44 +207,30 @@
 
         <div class="col-lg-4 mb-4">
             <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom">
-                    <h5 class="mb-0">🤖 Señales de Trading</h5>
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Últimas Señales</h5>
                 </div>
                 <div class="card-body p-0">
-                    <div style="max-height: 500px; overflow-y: auto;">
-                        {% if signals %}
-                        <table class="table table-sm mb-0 table-hover">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th>Activo</th>
-                                    <th>Señal</th>
-                                    <th>Precio</th>
-                                </tr>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr><th>Par</th><th>Tipo</th><th>Precio</th></tr>
                             </thead>
                             <tbody>
                                 {% for s in signals %}
                                 <tr>
-                                    <td class="fw-bold">{{ s.symbol }}</td>
-                                    <td>
-                                        <span class="badge w-100 {% if s.type == 'BUY' %}bg-success{% elif s.type == 'SELL' %}bg-danger{% else %}bg-secondary{% endif %}">
-                                            {{ s.type }}
-                                        </span>
-                                    </td>
-                                    <td class="small">${{ "%.2f"|format(s.price|default(0)) }}</td>
+                                    <td>{{ s.symbol }}</td>
+                                    <td><span class="badge {{ 'bg-success' if s.type == 'BUY' else 'bg-danger' }}">{{ s.type }}</span></td>
+                                    <td>${{ "%.2f"|format(s.price) }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
-                        {% else %}
-                        <div class="p-5 text-center text-muted">
-                            <p>Esperando señales del Cerebro...</p>
-                            <small>El bot está analizando el mercado.</small>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
 </div>
 {% endblock %}
