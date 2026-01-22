@@ -1,86 +1,84 @@
 version: '3.8'
 
 services:
-  # --- SERVICIOS DE DATOS (DATA LAYER) ---
-  market-data:
-    container_name: bot_ojos
+  # --- CORE UI ---
+  dashboard:
     build: .
-    command: python3 src/services/market_data/main.py
-    env_file: .env
-    restart: always
+    command: python src/services/dashboard/app.py
+    ports: ["8050:8050"]
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/app/src
 
-  historical-data:
-    container_name: bot_historia
+  # --- CORE TRADING ---
+  portfolio:
     build: .
-    command: python3 src/services/historical/main.py
-    env_file: .env
-    ports:
-      - "5002:5000"
-    restart: always
-
-  # --- AGENTES DE DECISIÓN (LOGIC LAYER) ---
-  strategy:
-    container_name: bot_cerebro
-    build: .
-    command: python3 src/agents/strategy/main.py
-    env_file: .env
-    ports:
-      - "5000:5000"
-    restart: always
-    depends_on:
-      - market-data
+    command: python src/services/portfolio/main.py
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/app/src
 
   orders:
-    container_name: bot_manos
     build: .
-    command: python3 src/agents/orders/main.py
-    env_file: .env
-    ports:
-      - "5001:5001"
-    restart: always
+    command: python src/services/orders/main.py
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/app/src
     depends_on:
-      - strategy
+      - portfolio
 
-  portfolio:
-    container_name: bot_contador
+  brain:
     build: .
-    command: python3 src/agents/portfolio/main.py
-    env_file: .env
-    restart: always
+    command: python src/services/brain/main.py
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/app/src
 
-  # --- HERRAMIENTAS ESPECIALIZADAS ---
-  pairs-trading:
-    container_name: bot_pares
+  # --- ADVANCED MODULES (RESTORED) ---
+  pairs:
     build: .
-    command: python3 src/services/pairs/main.py
-    env_file: .env
-    restart: always
+    command: python src/services/pairs/main.py
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/app/src
 
   simulator:
-    container_name: bot_simulador
     build: .
-    command: python3 src/services/simulator/main.py
-    env_file: .env
-    restart: always
+    command: python src/services/simulator/main.py
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/app/src
+
+  # --- DATA SERVICES ---
+  market-data:
+    build: .
+    command: python src/services/market_data/main.py
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+    volumes:
+      - ./src:/app/src
+  
+  historical:
+    build: .
+    command: python src/services/historical/main.py
+    volumes:
+      - ./src:/app/src
 
   alerts:
-    container_name: bot_alertas
     build: .
-    command: python3 src/services/alerts/main.py
-    env_file: .env
-    restart: always
+    command: python src/services/alerts/main.py
+    volumes:
+      - ./src:/app/src
 
-  # --- INTERFAZ DE USUARIO (UI LAYER) ---
-  dashboard:
-    container_name: bot_cara
-    build: .
-    command: python3 src/dashboard/main.py
-    env_file: .env
-    ports:
-      - "8050:8050"
-    restart: always
-    depends_on:
-      - historical-data
-      - strategy
-      - simulator
-      - pairs-trading

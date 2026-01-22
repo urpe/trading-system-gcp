@@ -1,29 +1,18 @@
-# Usamos una imagen ligera de Python oficial
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Evita que Python genere archivos .pyc y fuerza logs en tiempo real
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Instalamos dependencias del sistema (git, gcc, etc)
-RUN apt-get update && apt-get install -y \
+# Optimización: Instalar dependencias del sistema primero
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiamos los requerimientos primero (para aprovechar caché)
-# NOTA: Crearemos este archivo requirements.txt en un momento
+# Optimización: Capa de caché para pip
 COPY requirements.txt .
-
-# Instalamos las librerías de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiamos todo el código del proyecto
+# Copiamos el código
 COPY . .
 
-# Variable de entorno para que Python encuentre los módulos
+# Variable de entorno para Python path
 ENV PYTHONPATH=/app
-

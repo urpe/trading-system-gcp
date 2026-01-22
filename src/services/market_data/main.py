@@ -1,3 +1,11 @@
+import sys
+import os
+
+# FIX V14.2: Asegurar que Python vea los submódulos locales
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 import asyncio
 import json
 import os

@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Simulador de Estrategias | Trading System v7.0{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h4 class="mb-0">🔬 Simulador de Estrategias (Backtesting)</h4>
+                </div>
+                <div class="card-body">
+                    <!-- EXPLICACIÓN -->
+                    <div class="alert alert-info mb-4">
+                        <h5>📚 ¿Qué es el Backtesting?</h5>
+                        <p>El backtesting es una técnica que permite probar una estrategia de trading con <strong>datos históricos</strong> para ver cómo habría funcionado en el pasado.</p>
+                        <hr>
+                        <p class="mb-0"><strong>⚠️ Importante:</strong> El rendimiento pasado NO garantiza resultados futuros. Usa esta herramienta para evaluar estrategias, no como predicción.</p>
+                    </div>
+
+                    <form id="simulatorForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Activo a Simular</label>
+                                <select class="form-select" name="symbol" id="symbol">
+                                    {% for asset in assets %}
+                                    <option value="{{ asset }}">{{ asset }}/USDT</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Elige la criptomoneda que quieres analizar</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Capital Inicial (USD)</label>
+                                <input type="number" class="form-control" name="capital" value="10000" min="100">
+                                <small class="text-muted">Monto hipotético para la simulación</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Estrategia</label>
+                                <select class="form-select" name="strategy" id="strategy">
+                                    <option value="SMA_CROSSOVER">Cruce de Medias Móviles (SMA)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label fw-bold">SMA Rápida</label>
+                                <input type="number" class="form-control" name="sma_fast" value="10" min="2">
+                                <small class="text-muted">Período corto</small>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label fw-bold">SMA Lenta</label>
+                                <input type="number" class="form-control" name="sma_slow" value="30" min="5">
+                                <small class="text-muted">Período largo</small>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
+                            🚀 Ejecutar Simulación
+                        </button>
+                    </form>
+
+                    <div id="result" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANEL DE AYUDA -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">📖 Guía de Estrategias</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="fw-bold">Cruce de Medias Móviles (SMA)</h6>
+                    <p>Esta estrategia usa dos promedios de precios:</p>
+                    <ul>
+                        <li><strong>SMA Rápida:</strong> Promedio de los últimos N precios (ej: 10 horas)</li>
+                        <li><strong>SMA Lenta:</strong> Promedio de más precios (ej: 30 horas)</li>
+                    </ul>
+                    <p><strong>Señales:</strong></p>
+                    <ul>
+                        <li>🟢 <strong>COMPRA:</strong> Cuando la SMA rápida cruza POR ENCIMA de la lenta</li>
+                        <li>🔴 <strong>VENTA:</strong> Cuando la SMA rápida cruza POR DEBAJO de la lenta</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">⚠️ Métricas Clave</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Win Rate:</strong> Porcentaje de operaciones ganadoras. Un buen sistema tiene >50%.</p>
+                    <p><strong>Retorno Total:</strong> Ganancia o pérdida porcentual del capital inicial.</p>
+                    <p class="mb-0"><strong>Total Operaciones:</strong> Número de compras+ventas ejecutadas.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('simulatorForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button[type="submit"]');
+    const resultDiv = document.getElementById('result');
+    
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Simulando...';
+    resultDiv.innerHTML = '<div class="alert alert-info">Procesando datos históricos...</div>';
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    data.capital = parseFloat(data.capital);
+    data.sma_fast = parseInt(data.sma_fast);
+    data.sma_slow = parseInt(data.sma_slow);
+    
+    try {
+        const response = await fetch('/api/run-simulation', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const r = result.results;
+            resultDiv.innerHTML = `
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">✅ Resultados de la Simulación</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <h4 class="text-primary">$${r.capital_final.toLocaleString()}</h4>
+                                <small>Capital Final</small>
+                            </div>
+                            <div class="col-4">
+                                <h4 class="${r.retorno_total_pct >= 0 ? 'text-success' : 'text-danger'}">${r.retorno_total_pct}%</h4>
+                                <small>Retorno Total</small>
+                            </div>
+                            <div class="col-4">
+                                <h4 class="text-info">${r.win_rate_pct}%</h4>
+                                <small>Win Rate</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <p><strong>Total de operaciones:</strong> ${r.total_operaciones}</p>
+                        <p><strong>Operaciones ganadoras:</strong> ${r.operaciones_ganadoras}</p>
+                        <div class="alert alert-warning mt-3">
+                            <strong>📌 Interpretación:</strong> ${result.explanation.que_significa}
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <strong>Error:</strong> ${result.message || 'Error desconocido'}
+                    ${result.hint ? '<br><small>' + result.hint + '</small>' : ''}
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">Error de conexión: ${error.message}</div>`;
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Ejecutar Simulación';
+});
+</script>
+{% endblock %}

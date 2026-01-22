@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6 class="text-muted">Total Equity</h6>
+            <h2 class="text-success">${{ wallet.total_equity }}</h2>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h6 class="text-muted">Cash Disponible</h6>
+            <h3>${{ wallet.usdt_balance }}</h3>
+        </div>
+    </div>
+    
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Posiciones Activas</div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-hover mb-0">
+                    <thead><tr><th>Tipo</th><th>Activo</th><th>Cantidad</th><th>Precio</th><th>Valor</th></tr></thead>
+                    <tbody>
+                        {% for pos in wallet.positions %}
+                        <tr>
+                            <td><span class="badge {{ 'bg-success' if pos.type == 'LONG' else 'bg-danger' }}">{{ pos.type }}</span></td>
+                            <td>{{ pos.symbol }}</td>
+                            <td>{{ pos.amount }}</td>
+                            <td>${{ pos.current_price }}</td>
+                            <td>${{ pos.value }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">Sin posiciones activas</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<script>setTimeout(() => location.reload(), 5000);</script>
+{% endblock %}
