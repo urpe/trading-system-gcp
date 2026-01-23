@@ -1,82 +1,250 @@
 {% extends "base.html" %}
 
-{% block title %}Pairs Trading | Arbitraje Estadístico{% endblock %}
+{% block title %}Pairs Trading | HFT V14{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4">
-    <h2 class="mt-4">⚖️ Pairs Trading (Arbitraje)</h2>
-    <ol class="breadcrumb mb-4">
-        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
-        <li class="breadcrumb-item active">Motor de Correlación</li>
-    </ol>
+<!-- NAV TABS -->
+<ul class="nav nav-pills mb-4" id="pills-tab" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="pills-live-tab" data-bs-toggle="pill" data-bs-target="#pills-live" type="button" role="tab"><i class="bi bi-activity me-2"></i>Live Scanner</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="pills-backtest-tab" data-bs-toggle="pill" data-bs-target="#pills-backtest" type="button" role="tab"><i class="bi bi-hourglass-split me-2"></i>Backtesting Simulator</button>
+  </li>
+</ul>
 
+<div class="tab-content" id="pills-tabContent">
+  <!-- LIVE SCANNER TAB -->
+  <div class="tab-pane fade show active" id="pills-live" role="tabpanel">
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card bg-dark text-white border-info">
-                <div class="card-body">
-                    <h5 class="card-title text-info">¿Cómo funciona este motor?</h5>
-                    <p class="card-text">
-                        Este bot escanea matemáticamente el mercado buscando dos monedas que se comporten igual (Correlación > 0.8).
-                        Cuando sus precios se separan injustificadamente (Z-Score > 2.0), abre una operación de arbitraje:
-                        compra la barata y vende la cara, esperando que vuelvan a juntarse.
-                    </p>
+            <h2 class="mb-3"><i class="bi bi-arrow-left-right text-info"></i> Pairs Trading Engine</h2>
+            <div class="card bg-dark border-info bg-opacity-10 mb-4">
+                <div class="card-body d-flex align-items-center">
+                    <i class="bi bi-info-circle-fill text-info fs-3 me-3"></i>
+                    <div>
+                        <h5 class="card-title text-info mb-1">Strategy Logic</h5>
+                        <p class="card-text text-muted small mb-0">
+                            This engine scans for coin pairs with high correlation (>0.8). When price divergence (Z-Score) exceeds 2.0, 
+                            it executes a statistical arbitrage trade (Long Undervalued / Short Overvalued).
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">⚡ Oportunidades Detectadas (Tiempo Real)</h5>
-            <span class="badge bg-primary">Automático</span>
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Live Opportunities</h5>
+            <div>
+                <span class="badge bg-dark border border-secondary" id="scanner-status">
+                    <span class="spinner-grow spinner-grow-sm text-success" role="status" aria-hidden="true"></span>
+                    Scanning Active
+                </span>
+                <span class="badge bg-dark border border-secondary ms-2" id="last-update">--:--:--</span>
+            </div>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover table-bordered">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Hora</th>
-                            <th>Par Detectado</th>
-                            <th>Estrategia (Señal)</th>
-                            <th>Correlación</th>
-                            <th>Z-Score (Desviación)</th>
-                            <th>Estado</th>
+                <table class="table table-dark table-hover mb-0 align-middle">
+                    <thead>
+                        <tr class="text-muted small text-uppercase">
+                            <th>Timestamp</th>
+                            <th>Symbol Pair</th>
+                            <th>Signal</th>
+                            <th class="text-end">Correlation</th>
+                            <th class="text-end">Z-Score</th>
+                            <th class="text-end">Status</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% if signals %}
-                            {% for s in signals %}
-                            <tr>
-                                <td>{{ s.timestamp.strftime('%H:%M:%S') if s.timestamp else 'Justo ahora' }}</td>
-                                <td class="fw-bold">{{ s.symbol }}</td>
-                                <td>
-                                    <span class="badge bg-warning text-dark">{{ s.signal }}</span>
-                                </td>
-                                <td>{{ s.correlation }}</td>
-                                <td class="{{ 'text-danger' if s.z_score|abs > 3 else 'text-dark' }}">
-                                    {{ s.z_score }}
-                                    {% if s.z_score|abs > 3 %}🔥 Extremo{% endif %}
-                                </td>
-                                <td>
-                                    <span class="badge bg-success">Registrada</span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="6" class="text-center py-5">
-                                    <h4 class="text-muted">💤 Sin anomalías detectadas aún</h4>
-                                    <p class="text-muted">
-                                        El mercado está "normal". El bot sigue escaneando cada 5 minutos buscando divergencias.<br>
-                                        <small>Revisa los logs del contenedor <code>pairs-trading</code> para ver el escaneo en vivo.</small>
-                                    </p>
-                                </td>
-                            </tr>
-                        {% endif %}
+                    <tbody id="pairs-body">
+                        <!-- Populated via AJAX -->
+                        <tr><td colspan="6" class="text-center text-muted py-5"><div class="spinner-border text-primary" role="status"></div><br>Loading market data...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+  </div>
+
+  <!-- BACKTESTING TAB -->
+  <div class="tab-pane fade" id="pills-backtest" role="tabpanel">
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-sliders"></i> Configuration</h5></div>
+                <div class="card-body">
+                    <form id="backtestForm">
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small text-muted text-uppercase fw-bold">Asset A</label>
+                                <select class="form-select bg-dark text-light border-secondary" name="asset_a">
+                                    <option value="BTC">BTC</option>
+                                    <option value="ETH">ETH</option>
+                                    <option value="BNB">BNB</option>
+                                    <option value="SOL">SOL</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small text-muted text-uppercase fw-bold">Asset B</label>
+                                <select class="form-select bg-dark text-light border-secondary" name="asset_b">
+                                    <option value="ETH" selected>ETH</option>
+                                    <option value="BTC">BTC</option>
+                                    <option value="BNB">BNB</option>
+                                    <option value="SOL">SOL</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted text-uppercase fw-bold">Timeframe</label>
+                            <select class="form-select bg-dark text-light border-secondary" name="timeframe">
+                                <option value="1mo">Last 1 Month</option>
+                                <option value="3mo">Last 3 Months</option>
+                                <option value="6mo">Last 6 Months</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted text-uppercase fw-bold">Initial Capital</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark text-muted border-secondary">$</span>
+                                <input type="number" class="form-control bg-dark text-light border-secondary" name="capital" value="10000">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small text-muted text-uppercase fw-bold">Z-Score Threshold</label>
+                            <input type="range" class="form-range" min="1" max="4" step="0.1" value="2.0" id="zRange">
+                            <div class="text-end text-info font-monospace" id="zVal">2.0</div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
+                            <i class="bi bi-play-fill"></i> Run Backtest
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-graph-up"></i> Results</h5></div>
+                <div class="card-body" id="backtest-results">
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-bar-chart-line fs-1 opacity-25"></i>
+                        <p class="mt-2">Configure and run a simulation to see results.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
 </div>
+
+<script>
+    // --- LIVE SCANNER LOGIC ---
+    async function fetchPairsData() {
+        try {
+            const response = await fetch('/api/pairs-data');
+            const data = await response.json();
+            const tbody = document.getElementById('pairs-body');
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            
+            if (!data.signals || data.signals.length === 0) {
+                if(tbody.children.length > 1) return; // Don't wipe if we have old data
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5"><h4 class="text-muted opacity-50"><i class="bi bi-search"></i></h4><p class="text-muted">No arbitrage opportunities detected.</p></td></tr>`;
+            } else {
+                tbody.innerHTML = '';
+                data.signals.forEach(s => {
+                    const zScoreClass = Math.abs(s.z_score) > 3 ? 'text-danger-bright fw-bold' : 'text-info';
+                    const signalBadge = s.signal.includes('SHORT') ? 'bg-warning text-dark' : 'bg-success';
+                    const row = `
+                        <tr>
+                            <td class="text-muted font-monospace small">${s.timestamp}</td>
+                            <td class="fw-bold">${s.symbol}</td>
+                            <td><span class="badge ${signalBadge}">${s.signal}</span></td>
+                            <td class="text-end font-monospace">${s.correlation}</td>
+                            <td class="text-end font-monospace ${zScoreClass}">${s.z_score}</td>
+                            <td class="text-end"><span class="badge bg-dark border border-secondary text-secondary">Open</span></td>
+                        </tr>`;
+                    tbody.innerHTML += row;
+                });
+            }
+        } catch (error) { console.error(error); }
+    }
+    
+    // --- BACKTEST LOGIC ---
+    document.getElementById('zRange').oninput = function() { document.getElementById('zVal').textContent = this.value; }
+    
+    document.getElementById('backtestForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const resDiv = document.getElementById('backtest-results');
+        const btn = this.querySelector('button');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Simulating...';
+        resDiv.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2">Processing historical data from Binance...</p></div>';
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        data.capital = parseFloat(data.capital);
+        data.z_threshold = parseFloat(document.getElementById('zRange').value);
+        
+        try {
+            // Call via proxy in app.py if CORS/Network is an issue, but here we'll assume direct access or proxy setup
+            // Note: app.py doesn't have a proxy for /backtest yet, so we should add it OR call pairs service directly if exposed.
+            // Since browser can't call docker container directly, we need a proxy in app.py. 
+            // I'll add the fetch logic to hit a new proxy endpoint in app.py which I'll add next.
+            
+            const response = await fetch('/api/run-pairs-backtest', { // Need to create this proxy
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            
+            if(result.status === 'success') {
+                const r = result.results;
+                const pnlClass = r.retorno_total_pct >= 0 ? 'text-success-bright' : 'text-danger-bright';
+                
+                resDiv.innerHTML = `
+                    <div class="text-center mb-4">
+                        <h6 class="text-muted text-uppercase">Total Return</h6>
+                        <h2 class="${pnlClass} font-monospace">${r.retorno_total_pct}%</h2>
+                        <span class="badge bg-dark border border-secondary">Final Capital: $${r.capital_final.toLocaleString()}</span>
+                    </div>
+                    <div class="row text-center g-3">
+                        <div class="col-4">
+                            <div class="p-3 bg-dark border border-secondary rounded">
+                                <small class="text-muted d-block">Win Rate</small>
+                                <strong class="text-info fs-5">${r.win_rate_pct}%</strong>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 bg-dark border border-secondary rounded">
+                                <small class="text-muted d-block">Trades</small>
+                                <strong class="text-white fs-5">${r.total_trades}</strong>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 bg-dark border border-secondary rounded">
+                                <small class="text-muted d-block">Avg Corr</small>
+                                <strong class="text-warning fs-5">${r.correlation_mean}</strong>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                resDiv.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+            }
+        } catch(e) {
+            resDiv.innerHTML = `<div class="alert alert-danger">Connection Error: ${e.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-play-fill"></i> Run Backtest';
+        }
+    });
+
+    fetchPairsData();
+    setInterval(fetchPairsData, 5000);
+</script>
 {% endblock %}

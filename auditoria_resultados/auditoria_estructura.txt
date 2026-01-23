@@ -1,0 +1,77 @@
+|____src
+| |____shared
+| | |____logger.py
+| | |____utils.py
+| | |______pycache__
+| | | |____utils.cpython-311.pyc
+| |____config
+| | |____settings.py
+| | |______pycache__
+| | | |____settings.cpython-311.pyc
+| |____dashboard
+| | |____main.py
+| | |____Procfile
+| | |____templates
+| | | |____base.html
+| | | |____simulator.html
+| | | |____index.html
+| | | |____pairs.html
+| | | |____asset.html
+| | |____requirements.txt
+| |____services
+| | |____simulator
+| | | |____main.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____portfolio
+| | | |____main.py
+| | |____pairs
+| | | |____main.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____alerts
+| | | |____main.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____historical
+| | | |____main.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____orders
+| | | |____main.py
+| | |____market_data
+| | | |____analyzer
+| | | | |____selection_logic.py
+| | | | |______pycache__
+| | | | | |____selection_logic.cpython-311.pyc
+| | | | | |______init__.cpython-311.pyc
+| | | | |______init__.py
+| | | |____main.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____brain
+| | | |____main.py
+| | |____dashboard
+| | | |____app.py
+| | | |____templates
+| | | | |____base.html
+| | | | |____simulator.html
+| | | | |____index.html
+| | | | |____pairs.html
+| | | | |____asset.html
+| | | |____static
+| |____agents
+| | |____portfolio
+| | | |____main.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____orders
+| | | |____main.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____strategy
+| | | |____main.py
+| | | |____optimizer.py
+| | | |____Procfile
+| | | |____requirements.txt
+| | |____brain

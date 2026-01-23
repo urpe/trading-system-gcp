@@ -1,101 +1,120 @@
 {% extends "base.html" %}
 
-{% block title %}Simulador de Estrategias | Trading System v7.0{% endblock %}
+{% block title %}Strategy Simulator | HFT V14{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-dark text-white">
-                    <h4 class="mb-0">🔬 Simulador de Estrategias (Backtesting)</h4>
+<div class="row g-4 mt-2">
+    <!-- Simulator Form -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-cpu"></i> Strategy Backtesting</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-dark border-secondary d-flex align-items-center mb-4" role="alert">
+                    <i class="bi bi-lightbulb text-warning me-3 fs-4"></i>
+                    <div class="small text-muted">
+                        Test your strategies against historical data before risking real capital. 
+                        Past performance is not indicative of future results.
+                    </div>
                 </div>
-                <div class="card-body">
-                    <!-- EXPLICACIÓN -->
-                    <div class="alert alert-info mb-4">
-                        <h5>📚 ¿Qué es el Backtesting?</h5>
-                        <p>El backtesting es una técnica que permite probar una estrategia de trading con <strong>datos históricos</strong> para ver cómo habría funcionado en el pasado.</p>
-                        <hr>
-                        <p class="mb-0"><strong>⚠️ Importante:</strong> El rendimiento pasado NO garantiza resultados futuros. Usa esta herramienta para evaluar estrategias, no como predicción.</p>
+
+                <form id="simulatorForm">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Asset</label>
+                            <select class="form-select bg-dark text-light border-secondary" name="symbol" id="symbol">
+                                {% for asset in assets %}
+                                <option value="{{ asset }}">{{ asset }}/USDT</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Initial Capital (USDT)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark text-muted border-secondary">$</span>
+                                <input type="number" class="form-control bg-dark text-light border-secondary" name="capital" value="10000" min="100">
+                            </div>
+                        </div>
                     </div>
 
-                    <form id="simulatorForm">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label fw-bold">Activo a Simular</label>
-                                <select class="form-select" name="symbol" id="symbol">
-                                    {% for asset in assets %}
-                                    <option value="{{ asset }}">{{ asset }}/USDT</option>
-                                    {% endfor %}
-                                </select>
-                                <small class="text-muted">Elige la criptomoneda que quieres analizar</small>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label fw-bold">Capital Inicial (USD)</label>
-                                <input type="number" class="form-control" name="capital" value="10000" min="100">
-                                <small class="text-muted">Monto hipotético para la simulación</small>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label fw-bold">Estrategia</label>
-                                <select class="form-select" name="strategy" id="strategy">
-                                    <option value="SMA_CROSSOVER">Cruce de Medias Móviles (SMA)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">SMA Rápida</label>
-                                <input type="number" class="form-control" name="sma_fast" value="10" min="2">
-                                <small class="text-muted">Período corto</small>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">SMA Lenta</label>
-                                <input type="number" class="form-control" name="sma_slow" value="30" min="5">
-                                <small class="text-muted">Período largo</small>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-12">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Simulation Period</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="timeframe" id="tf1d" value="1d" checked>
+                                <label class="btn btn-outline-secondary" for="tf1d">24 Hours</label>
+                                
+                                <input type="radio" class="btn-check" name="timeframe" id="tf7d" value="7d">
+                                <label class="btn btn-outline-secondary" for="tf7d">7 Days</label>
+                                
+                                <input type="radio" class="btn-check" name="timeframe" id="tf15d" value="15d">
+                                <label class="btn btn-outline-secondary" for="tf15d">15 Days</label>
+                                
+                                <input type="radio" class="btn-check" name="timeframe" id="tf1mo" value="1mo">
+                                <label class="btn btn-outline-secondary" for="tf1mo">1 Month</label>
                             </div>
                         </div>
+                    </div>
 
-                        <button type="submit" class="btn btn-primary btn-lg w-100">
-                            🚀 Ejecutar Simulación
-                        </button>
-                    </form>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Strategy Model</label>
+                            <select class="form-select bg-dark text-light border-secondary" name="strategy" id="strategy">
+                                <option value="SMA_CROSSOVER">SMA Crossover (Trend Following)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Fast SMA</label>
+                            <input type="number" class="form-control bg-dark text-light border-secondary font-monospace" name="sma_fast" value="10" min="2">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Slow SMA</label>
+                            <input type="number" class="form-control bg-dark text-light border-secondary font-monospace" name="sma_slow" value="30" min="5">
+                        </div>
+                    </div>
 
-                    <div id="result" class="mt-4"></div>
-                </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
+                        <i class="bi bi-play-circle me-2"></i> Run Simulation
+                    </button>
+                </form>
+
+                <div id="result" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Info -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header border-secondary">
+                <h6 class="mb-0 text-info"><i class="bi bi-book me-2"></i> Strategy Guide</h6>
+            </div>
+            <div class="card-body">
+                <h6 class="fw-bold">SMA Crossover</h6>
+                <p class="small text-muted mb-3">Classic trend-following strategy using two moving averages.</p>
+                <ul class="list-unstyled small">
+                    <li class="mb-2"><span class="badge bg-success me-2">BUY</span> Fast SMA crosses <strong>above</strong> Slow SMA</li>
+                    <li><span class="badge bg-danger me-2">SELL</span> Fast SMA crosses <strong>below</strong> Slow SMA</li>
+                </ul>
             </div>
         </div>
 
-        <!-- PANEL DE AYUDA -->
-        <div class="col-lg-4">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">📖 Guía de Estrategias</h5>
-                </div>
-                <div class="card-body">
-                    <h6 class="fw-bold">Cruce de Medias Móviles (SMA)</h6>
-                    <p>Esta estrategia usa dos promedios de precios:</p>
-                    <ul>
-                        <li><strong>SMA Rápida:</strong> Promedio de los últimos N precios (ej: 10 horas)</li>
-                        <li><strong>SMA Lenta:</strong> Promedio de más precios (ej: 30 horas)</li>
-                    </ul>
-                    <p><strong>Señales:</strong></p>
-                    <ul>
-                        <li>🟢 <strong>COMPRA:</strong> Cuando la SMA rápida cruza POR ENCIMA de la lenta</li>
-                        <li>🔴 <strong>VENTA:</strong> Cuando la SMA rápida cruza POR DEBAJO de la lenta</li>
-                    </ul>
-                </div>
+        <div class="card">
+            <div class="card-header border-secondary">
+                <h6 class="mb-0 text-warning"><i class="bi bi-bar-chart me-2"></i> Key Metrics</h6>
             </div>
-
-            <div class="card shadow-sm">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">⚠️ Métricas Clave</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>Win Rate:</strong> Porcentaje de operaciones ganadoras. Un buen sistema tiene >50%.</p>
-                    <p><strong>Retorno Total:</strong> Ganancia o pérdida porcentual del capital inicial.</p>
-                    <p class="mb-0"><strong>Total Operaciones:</strong> Número de compras+ventas ejecutadas.</p>
-                </div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-6 text-muted">Win Rate</dt>
+                    <dd class="col-6 text-end">% of profitable trades</dd>
+                    
+                    <dt class="col-6 text-muted">Total Return</dt>
+                    <dd class="col-6 text-end">Net profit/loss %</dd>
+                    
+                    <dt class="col-6 text-muted">Drawdown</dt>
+                    <dd class="col-6 text-end">Max capital decline</dd>
+                </dl>
             </div>
         </div>
     </div>
@@ -106,13 +125,16 @@ document.getElementById('simulatorForm').addEventListener('submit', async functi
     e.preventDefault();
     const btn = this.querySelector('button[type="submit"]');
     const resultDiv = document.getElementById('result');
+    const originalBtnText = btn.innerHTML;
     
     btn.disabled = true;
-    btn.innerHTML = '⏳ Simulando...';
-    resultDiv.innerHTML = '<div class="alert alert-info">Procesando datos históricos...</div>';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
+    resultDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary mb-2"></div><p class="text-muted small">Crunching historical numbers...</p></div>';
     
     const formData = new FormData(this);
     const data = Object.fromEntries(formData.entries());
+    
+    // Type conversion
     data.capital = parseFloat(data.capital);
     data.sma_fast = parseInt(data.sma_fast);
     data.sma_slow = parseInt(data.sma_slow);
@@ -127,49 +149,63 @@ document.getElementById('simulatorForm').addEventListener('submit', async functi
         
         if (result.status === 'success') {
             const r = result.results;
+            const returnClass = r.retorno_total_pct >= 0 ? 'text-success-bright' : 'text-danger-bright';
+            
             resultDiv.innerHTML = `
-                <div class="card border-success">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">✅ Resultados de la Simulación</h5>
+                <div class="card border-success bg-dark">
+                    <div class="card-header bg-success bg-opacity-25 text-success border-success">
+                        <h6 class="mb-0"><i class="bi bi-check-circle-fill me-2"></i> Simulation Complete</h6>
                     </div>
                     <div class="card-body">
-                        <div class="row text-center mb-3">
-                            <div class="col-4">
-                                <h4 class="text-primary">$${r.capital_final.toLocaleString()}</h4>
-                                <small>Capital Final</small>
+                        <div class="row text-center mb-4">
+                            <div class="col-4 border-end border-secondary">
+                                <small class="text-muted text-uppercase">Final Capital</small>
+                                <h4 class="mb-0 font-monospace text-white">$${r.capital_final.toLocaleString()}</h4>
+                            </div>
+                            <div class="col-4 border-end border-secondary">
+                                <small class="text-muted text-uppercase">Total Return</small>
+                                <h4 class="mb-0 font-monospace ${returnClass}">${r.retorno_total_pct}%</h4>
                             </div>
                             <div class="col-4">
-                                <h4 class="${r.retorno_total_pct >= 0 ? 'text-success' : 'text-danger'}">${r.retorno_total_pct}%</h4>
-                                <small>Retorno Total</small>
-                            </div>
-                            <div class="col-4">
-                                <h4 class="text-info">${r.win_rate_pct}%</h4>
-                                <small>Win Rate</small>
+                                <small class="text-muted text-uppercase">Win Rate</small>
+                                <h4 class="mb-0 font-monospace text-info">${r.win_rate_pct}%</h4>
                             </div>
                         </div>
-                        <hr>
-                        <p><strong>Total de operaciones:</strong> ${r.total_operaciones}</p>
-                        <p><strong>Operaciones ganadoras:</strong> ${r.operaciones_ganadoras}</p>
-                        <div class="alert alert-warning mt-3">
-                            <strong>📌 Interpretación:</strong> ${result.explanation.que_significa}
+                        
+                        <div class="d-flex justify-content-between text-muted small mb-3">
+                            <span>Trades: <strong class="text-white">${r.total_operaciones}</strong></span>
+                            <span>Wins: <strong class="text-success-bright">${r.operaciones_ganadoras}</strong></span>
+                            <span>Losses: <strong class="text-danger-bright">${r.total_operaciones - r.operaciones_ganadoras}</strong></span>
+                        </div>
+                        
+                        <div class="alert alert-secondary bg-dark border-secondary mb-0 small">
+                            <i class="bi bi-info-circle me-1"></i> ${result.explanation.que_significa}
                         </div>
                     </div>
                 </div>
             `;
         } else {
             resultDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <strong>Error:</strong> ${result.message || 'Error desconocido'}
-                    ${result.hint ? '<br><small>' + result.hint + '</small>' : ''}
+                <div class="alert alert-danger d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+                    <div>
+                        <strong>Simulation Failed</strong><br>
+                        ${result.message || 'Unknown error occurred.'}
+                        ${result.hint ? '<br><small class="opacity-75">' + result.hint + '</small>' : ''}
+                    </div>
                 </div>
             `;
         }
     } catch (error) {
-        resultDiv.innerHTML = `<div class="alert alert-danger">Error de conexión: ${error.message}</div>`;
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-wifi-off me-2"></i> Connection Error: ${error.message}
+            </div>
+        `;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnText;
     }
-    
-    btn.disabled = false;
-    btn.innerHTML = '🚀 Ejecutar Simulación';
 });
 </script>
 {% endblock %}

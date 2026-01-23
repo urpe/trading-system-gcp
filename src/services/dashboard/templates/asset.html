@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle {{ symbol }} | Trading Pro{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 mb-0">🪙 Market Analysis: <span class="text-primary">{{ symbol }}</span></h1>
+            <p class="text-muted small text-uppercase">Real-time Data Stream</p>
+        </div>
+        <a href="/" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+    </div>
+
+    <!-- Datos del Activo -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card h-100 bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase small">Current Price</h6>
+                    <h3 class="font-monospace text-white">${{ "%.2f"|format(data.price|default(0)) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100 bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase small">24h Change</h6>
+                    <h3 class="font-monospace {% if data.change|default(0) >= 0 %}text-success-bright{% else %}text-danger-bright{% endif %}">
+                        {{ "%.2f"|format(data.change|default(0)) }}%
+                    </h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100 bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase small">24h High</h6>
+                    <h3 class="font-monospace text-info">${{ "%.2f"|format(data.high|default(0)) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100 bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase small">24h Low</h6>
+                    <h3 class="font-monospace text-warning">${{ "%.2f"|format(data.low|default(0)) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Señales del Activo -->
+    <div class="card bg-dark border-secondary">
+        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-activity"></i> Signal History</h5>
+            <span class="badge bg-secondary">{{ signals|length }} Signals</span>
+        </div>
+        <div class="card-body p-0">
+            {% if signals %}
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0 align-middle">
+                    <thead>
+                        <tr class="text-muted small text-uppercase">
+                            <th>Signal</th>
+                            <th class="text-end">Price</th>
+                            <th>Reason / Strategy</th>
+                            <th class="text-end">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in signals %}
+                        <tr>
+                            <td>
+                                <span class="badge {% if s.signal == 'BUY' %}bg-success{% elif s.signal == 'SELL' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                    {{ s.signal|default('N/A') }}
+                                </span>
+                            </td>
+                            <td class="text-end font-monospace">${{ "%.2f"|format(s.price|default(0)) }}</td>
+                            <td class="text-muted small">{{ s.reason|default('Algorithmic Trigger') }}</td>
+                            <td class="text-end text-muted small">{{ s.timestamp|default('Just now') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <div class="mb-3 text-muted" style="font-size: 2rem;"><i class="bi bi-search"></i></div>
+                <h5 class="text-muted">No signals recorded yet</h5>
+                <p class="text-muted small">The strategy engine is monitoring {{ symbol }} for opportunities.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
