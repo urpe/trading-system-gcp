@@ -1,71 +1,298 @@
 import time
-import threading
-from datetime import datetime, timezone
-from google.cloud import firestore
+import json
+import logging
+from datetime import datetime
 from src.config.settings import config
-from src.shared.utils import get_logger, robust_http_request
+from src.shared.utils import get_logger
+from src.shared.memory import memory
+from src.shared.database import init_db, SessionLocal, Trade, Wallet
 
 logger = get_logger("OrdersSvc")
-db = firestore.Client(project=config.PROJECT_ID)
-processed_ids = set()
 
-def execute_order(signal: dict):
-    # Decodificación Inteligente
-    raw = str(signal).upper()
-    side = 'BUY' if 'BUY' in raw else 'SELL' if 'SELL' in raw else None
-    
-    if not side:
-        logger.warning(f"🤷 Unknown intent: {signal}")
-        return
+# Inicializar Base de Datos
+init_db()
 
-    price = float(signal.get('price', 0))
-    if price <= 0: return
+# Configuración de Trading
+MAX_OPEN_POSITIONS = 5
+TRADE_AMOUNT_USD = config.TRADE_AMOUNT
 
-    payload = {
-        "symbol": signal['symbol'],
-        "side": side,
-        "price": price,
-        "amount": config.TRADE_AMOUNT / price
-    }
-    
+def initialize_wallet():
+    """Inicializa la wallet si no existe"""
+    session = SessionLocal()
     try:
-        url = f"{config.SVC_PORTFOLIO}/update"
-        resp = robust_http_request('POST', url, json_data=payload)
-        if resp.status_code == 200:
-            logger.info(f"🚀 EXECUTED: {side} {signal['symbol']}")
+        wallet = session.query(Wallet).first()
+        if not wallet:
+            wallet = Wallet(
+                usdt_balance=config.INITIAL_CAPITAL,
+                total_equity=config.INITIAL_CAPITAL,
+                last_updated=datetime.utcnow()
+            )
+            session.add(wallet)
+            session.commit()
+            logger.info(f"💰 Wallet inicializada: ${config.INITIAL_CAPITAL}")
     except Exception as e:
-        logger.error(f"💀 Failed: {e}")
+        logger.error(f"Error inicializando wallet: {e}")
+        session.rollback()
+    finally:
+        session.close()
 
-def signal_handler(doc_id, data):
-    if doc_id in processed_ids: return
-    processed_ids.add(doc_id)
-    if len(processed_ids) > 2000: processed_ids.clear()
+def get_wallet():
+    """Obtiene el estado actual de la wallet"""
+    session = SessionLocal()
+    try:
+        wallet = session.query(Wallet).order_by(Wallet.last_updated.desc()).first()
+        return wallet
+    finally:
+        session.close()
+
+def update_wallet(usdt_balance, total_equity):
+    """Actualiza el balance de la wallet"""
+    session = SessionLocal()
+    try:
+        wallet = session.query(Wallet).order_by(Wallet.last_updated.desc()).first()
+        if wallet:
+            wallet.usdt_balance = usdt_balance
+            wallet.total_equity = total_equity
+            wallet.last_updated = datetime.utcnow()
+            session.commit()
+    except Exception as e:
+        logger.error(f"Error actualizando wallet: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+def get_open_positions_count():
+    """Cuenta posiciones abiertas"""
+    session = SessionLocal()
+    try:
+        count = session.query(Trade).filter(Trade.status == 'OPEN').count()
+        return count
+    finally:
+        session.close()
+
+def stop_loss_worker():
+    """
+    V19.1: Worker que verifica stop loss cada 30 segundos.
+    Cierra automáticamente posiciones con pérdida > -2%
+    """
+    import time
     
-    # Filtro de tiempo (Python side)
-    ts = data.get('timestamp')
-    if ts:
+    logger.info("🛡️ Stop Loss Worker iniciado (check cada 30s)")
+    
+    while True:
         try:
-            if hasattr(ts, 'timestamp'): ts = ts.timestamp()
-            now = datetime.now(timezone.utc).timestamp()
-            if (now - ts) > 300: return # Ignorar viejas (>5min)
-        except: pass
-
-    logger.info(f"📨 Signal: {data.get('symbol')}")
-    execute_order(data)
-
-def start_listener():
-    logger.info("📡 Listening for signals...")
-    # Listener Híbrido V13
-    ref = db.collection('signals').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10)
-    
-    def on_snapshot(col_snap, changes, read_time):
-        for change in reversed(changes):
-            if change.type.name in ['ADDED', 'MODIFIED']:
-                t = threading.Thread(target=signal_handler, args=(change.document.id, change.document.to_dict()))
-                t.start()
+            time.sleep(30)  # Check cada 30 segundos
+            
+            session = SessionLocal()
+            try:
+                # Buscar posiciones abiertas
+                open_trades = session.query(Trade).filter(Trade.status == 'OPEN').all()
                 
-    ref.on_snapshot(on_snapshot)
-    while True: time.sleep(1)
+                if not open_trades:
+                    continue
+                
+                # Verificar cada posición
+                for trade in open_trades:
+                    # Obtener precio actual desde Redis
+                    current_price_key = f"price:{trade.symbol}"
+                    current_price_str = memory.get_client().get(current_price_key)
+                    
+                    if not current_price_str:
+                        continue
+                    
+                    current_price = float(current_price_str)
+                    
+                    # Calcular PnL %
+                    pnl_pct = ((current_price - trade.entry_price) / trade.entry_price) * 100
+                    
+                    # Trigger stop loss si pérdida > threshold
+                    if pnl_pct <= -config.STOP_LOSS_PCT:
+                        logger.warning(f"🛑 STOP LOSS TRIGGERED: {trade.symbol} @ ${current_price:.2f} (PnL: {pnl_pct:.1f}%)")
+                        
+                        # Ejecutar venta forzada - publicar señal de SELL en Redis
+                        stop_loss_signal = {
+                            "symbol": trade.symbol,
+                            "type": "SELL",
+                            "price": current_price,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "reason": f"STOP_LOSS triggered (PnL: {pnl_pct:.1f}%)",
+                            "force": True  # Flag para indicar venta forzada
+                        }
+                        
+                        memory.publish('signals', stop_loss_signal)
+                        logger.info(f"📤 Stop loss signal published for {trade.symbol}")
+                        
+            except Exception as e:
+                logger.error(f"Error en stop loss worker: {e}")
+            finally:
+                session.close()
+                
+        except Exception as e:
+            logger.error(f"Error crítico en stop loss worker: {e}")
+            time.sleep(60)  # Esperar más si hay error crítico
+
+def find_open_position(symbol):
+    """Busca una posición abierta para un símbolo"""
+    session = SessionLocal()
+    try:
+        trade = session.query(Trade).filter(
+            Trade.symbol == symbol,
+            Trade.status == 'OPEN'
+        ).first()
+        return trade
+    finally:
+        session.close()
+
+def execute_buy(signal):
+    """Ejecuta una orden de compra (abre posición)"""
+    session = SessionLocal()
+    try:
+        # Verificar límite de posiciones
+        open_count = get_open_positions_count()
+        if open_count >= MAX_OPEN_POSITIONS:
+            logger.warning(f"⚠️ Max positions reached ({MAX_OPEN_POSITIONS}). Skipping BUY {signal['symbol']}")
+            return
+        
+        # Verificar balance
+        wallet = get_wallet()
+        if not wallet or wallet.usdt_balance < TRADE_AMOUNT_USD:
+            logger.warning(f"⚠️ Insufficient balance. Need ${TRADE_AMOUNT_USD}, have ${wallet.usdt_balance if wallet else 0}")
+            return
+        
+        price = float(signal.get('price', 0))
+        if price <= 0:
+            logger.warning(f"⚠️ Invalid price: {price}")
+            return
+        
+        # V19: Aplicar comisión al comprar (Binance fees)
+        net_amount_to_invest = TRADE_AMOUNT_USD * (1 - config.COMMISSION_RATE)
+        amount = net_amount_to_invest / price
+        commission_paid = TRADE_AMOUNT_USD * config.COMMISSION_RATE
+        
+        # Crear trade
+        trade = Trade(
+            symbol=signal['symbol'],
+            side='LONG',
+            amount=amount,
+            entry_price=price,
+            status='OPEN',
+            timestamp=datetime.utcnow()
+        )
+        session.add(trade)
+        
+        # Actualizar balance
+        new_balance = wallet.usdt_balance - TRADE_AMOUNT_USD
+        update_wallet(new_balance, wallet.total_equity)
+        
+        session.commit()
+        logger.info(f"🚀 BUY EXECUTED: {signal['symbol']} | Amount: {amount:.6f} | Price: ${price:.2f} | Cost: ${TRADE_AMOUNT_USD}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error executing BUY: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+def execute_sell(signal):
+    """Ejecuta una orden de venta (cierra posición)"""
+    session = SessionLocal()
+    try:
+        # Buscar posición abierta
+        symbol = signal['symbol']
+        trade = session.query(Trade).filter(
+            Trade.symbol == symbol,
+            Trade.status == 'OPEN'
+        ).first()
+        
+        if not trade:
+            logger.warning(f"⚠️ No open position found for {symbol}")
+            return
+        
+        exit_price = float(signal.get('price', 0))
+        if exit_price <= 0:
+            logger.warning(f"⚠️ Invalid exit price: {exit_price}")
+            return
+        
+        # V19: Calcular PnL con comisión al vender
+        gross_exit_value = trade.amount * exit_price
+        commission_on_exit = gross_exit_value * config.COMMISSION_RATE
+        net_exit_value = gross_exit_value - commission_on_exit
+        entry_value = trade.amount * trade.entry_price
+        pnl = net_exit_value - entry_value
+        
+        # Cerrar trade
+        trade.exit_price = exit_price
+        trade.pnl = pnl
+        trade.status = 'CLOSED'
+        
+        # Actualizar balance
+        wallet = get_wallet()
+        if wallet:
+            new_balance = wallet.usdt_balance + net_exit_value
+            new_equity = wallet.total_equity + pnl
+            update_wallet(new_balance, new_equity)
+        
+        session.commit()
+        
+        roe = (pnl / entry_value * 100) if entry_value > 0 else 0
+        logger.info(f"💰 SELL EXECUTED: {symbol} | PnL: ${pnl:.2f} ({roe:.2f}%) | Exit: ${exit_price:.2f} | Fee: ${commission_on_exit:.2f} | Net: ${net_exit_value:.2f}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error executing SELL: {e}")
+        session.rollback()
+    finally:
+        session.close()
+
+def process_signal(message):
+    """Procesa señales de trading del canal Redis"""
+    try:
+        data = json.loads(message['data'])
+        signal_type = data.get('type', '').upper()
+        symbol = data.get('symbol', '')
+        
+        if not signal_type or not symbol:
+            logger.warning(f"⚠️ Invalid signal format: {data}")
+            return
+        
+        logger.info(f"📨 Signal received: {signal_type} {symbol}")
+        
+        if signal_type == 'BUY':
+            execute_buy(data)
+        elif signal_type == 'SELL':
+            execute_sell(data)
+        else:
+            logger.warning(f"⚠️ Unknown signal type: {signal_type}")
+            
+    except Exception as e:
+        logger.error(f"❌ Error processing signal: {e}")
+
+def main():
+    logger.info("🚀 Orders Service V19 (Redis + SQLite + Commissions) INICIADO")
+    
+    # Inicializar wallet
+    initialize_wallet()
+    
+    # Conectar a Redis
+    redis_conn = memory.get_client()
+    if not redis_conn:
+        logger.critical("🔥 No se pudo conectar a Redis. Reintentando...")
+        time.sleep(5)
+        return
+    
+    pubsub = redis_conn.pubsub()
+    pubsub.subscribe('signals')
+    
+    logger.info("✅ Suscrito al canal 'signals'. Esperando señales de trading...")
+    
+    for message in pubsub.listen():
+        if message['type'] == 'message':
+            process_signal(message)
 
 if __name__ == '__main__':
-    start_listener()
+    time.sleep(5)  # Esperar a que otros servicios inicien
+    while True:
+        try:
+            main()
+        except Exception as e:
+            logger.error(f"❌ Crash en loop principal: {e}")
+            time.sleep(5)

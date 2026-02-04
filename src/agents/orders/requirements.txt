@@ -1,4 +1,0 @@
-Flask==2.2.2
-google-cloud-pubsub==2.13.4
-gunicorn==20.1.0
-python-binance==1.0.19

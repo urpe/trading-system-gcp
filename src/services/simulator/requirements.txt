@@ -1,4 +1,5 @@
 flask
 gunicorn
-google-cloud-firestore
 pandas
+pandas_ta
+requests

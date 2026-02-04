@@ -1,92 +1,104 @@
-from flask import Flask, render_template, jsonify, request
-from google.cloud import firestore
+from flask import Flask, render_template, jsonify, request, send_file
 from src.config.settings import config
 from src.shared.utils import get_logger
+from src.shared.memory import memory # Redis Client
+from src.shared.database import SessionLocal, Signal, Trade, Wallet, PairsSignal # Local DB
 import requests
+import json
+from datetime import datetime, timedelta
+from openpyxl import Workbook
+from io import BytesIO
 
 logger = get_logger("Dashboard")
 app = Flask(__name__)
-db = firestore.Client(project=config.PROJECT_ID)
 
 # --- Helper Functions ---
 
+def get_realtime_price(symbol):
+    """Fetch realtime price from Redis cache using Shared Memory."""
+    try:
+        data = memory.get(f"price:{symbol}")
+        if data and isinstance(data, dict):
+            return data.get('price', 0)
+    except Exception as e:
+        logger.error(f"Redis Error get_realtime_price({symbol}): {e}")
+    return 0
+
+def get_active_symbols():
+    """Fetch Top 5 Monitored Symbols from Redis."""
+    try:
+        data = memory.get("active_symbols")
+        if data and isinstance(data, list):
+            return data
+    except Exception as e:
+        logger.error(f"Redis Error get_active_symbols: {e}")
+    return ['btcusdt', 'ethusdt', 'solusdt', 'bnbusdt', 'xrpusdt']
+
 def get_wallet_data():
-    """Fetch wallet and positions data from Firestore."""
+    """Fetch wallet data from Local DB (SQLite)."""
     wallet = {
         "usdt_balance": config.INITIAL_CAPITAL, 
         "total_equity": config.INITIAL_CAPITAL, 
         "positions": []
     }
+    
+    session = SessionLocal()
     try:
-        w_doc = db.collection('wallet').document('main_account').get()
-        if w_doc.exists:
-            wd = w_doc.to_dict()
-            wallet['usdt_balance'] = wd.get('usdt_balance', 0)
-            
-        pos_docs = db.collection('portfolio').stream()
-        equity = wallet['usdt_balance']
+        # Leer balance real de la tabla Wallet
+        wallet_db = session.query(Wallet).order_by(Wallet.last_updated.desc()).first()
+        if wallet_db:
+            wallet['usdt_balance'] = wallet_db.usdt_balance
+            wallet['total_equity'] = wallet_db.total_equity
         
-        for p in pos_docs:
-            pd = p.to_dict()
-            val = pd.get('amount', 0) * pd.get('current_price', 0)
+        # Obtener posiciones abiertas
+        trades = session.query(Trade).filter(Trade.status == 'OPEN').all()
+        
+        for t in trades:
+            current_price = get_realtime_price(t.symbol)
+            if current_price == 0: current_price = t.entry_price
             
-            # Basic PnL calculation (Current Value - Cost Basis) if entry_price exists
-            if pd.get('type') == 'LONG': 
-                equity += val
-            elif pd.get('type') == 'SHORT':
-                 # Simplified Short Equity logic if needed
-                pass 
-
+            val = t.amount * current_price
+            
             wallet['positions'].append({
-                "type": pd.get('type'), 
-                "symbol": pd.get('symbol'),
-                "amount": round(pd.get('amount'), 4), 
-                "current_price": round(pd.get('current_price'), 2),
+                "type": t.side,
+                "symbol": t.symbol,
+                "amount": round(t.amount, 4),
+                "current_price": round(current_price, 2),
                 "value": round(val, 2),
-                "entry_price": round(pd.get('entry_price', 0), 2),
-                "pnl": round(val - (pd.get('amount', 0) * pd.get('entry_price', 0)), 2) if pd.get('entry_price') else 0
+                "entry_price": round(t.entry_price, 2),
+                "pnl": round(val - (t.amount * t.entry_price), 2)
             })
         
-        wallet['total_equity'] = round(equity, 2)
-        wallet['usdt_balance'] = round(wallet['usdt_balance'], 2)
-        
     except Exception as e:
-        logger.error(f"DB Error get_wallet_data: {e}")
+        logger.error(f"❌ DB Error get_wallet_data: {e}")
+    finally:
+        session.close()
         
     return wallet
 
-def get_pairs_data():
-    """Fetch pairs trading signals from Firestore."""
+def get_signals_history(limit=20):
+    """Fetch signals from Local SQLite DB."""
     signals = []
+    session = SessionLocal()
     try:
-        # Fetch recent signals from 'signals' collection where source is 'pairs_trading'
-        # Or if there is a dedicated 'pairs_status' collection
-        docs = db.collection('signals').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(20).stream()
-        for doc in docs:
-            d = doc.to_dict()
-            if d.get('source') == 'pairs_trading' or d.get('strategy') == 'PAIRS_TRADING':
-                 signals.append({
-                    "timestamp": d.get('timestamp').strftime('%H:%M:%S') if d.get('timestamp') else '--:--',
-                    "symbol": d.get('symbol'),
-                    "signal": d.get('signal'), # BUY/SELL
-                    "correlation": round(d.get('correlation', 0), 2),
-                    "z_score": round(d.get('z_score', 0), 2),
-                    "status": d.get('status', 'OPEN')
-                 })
+        db_signals = session.query(Signal).order_by(Signal.timestamp.desc()).limit(limit).all()
+        for s in db_signals:
+            signals.append({
+                "timestamp": s.timestamp.strftime('%H:%M:%S'),
+                "symbol": s.symbol,
+                "signal": s.signal_type,
+                "price": s.price,
+                "reason": s.reason,
+                "status": s.status
+            })
     except Exception as e:
-        logger.error(f"DB Error get_pairs_data: {e}")
+        logger.error(f"DB Error get_signals_history: {e}")
+    finally:
+        session.close()
     return signals
 
 def get_active_assets():
-    """Fetch list of assets available for simulation."""
-    # Ideally fetch from a config or active market data collection
-    # For now returning a static list or fetching from market_data collection
-    try:
-         # Example: fetch unique symbols from historical or market_data
-         # This is a placeholder list based on common HFT pairs
-         return ["BTC", "ETH", "BNB", "SOL", "ADA", "XRP", "DOGE"]
-    except Exception:
-        return ["BTC", "ETH"]
+    return ["BTC", "ETH", "BNB", "SOL", "XRP"]
 
 # --- Routes ---
 
@@ -97,7 +109,27 @@ def index():
 @app.route('/api/dashboard-data')
 def dashboard_data():
     data = get_wallet_data()
+    data['scanner'] = get_active_symbols()
+    data['regimes'] = get_market_regimes()  # V21: Agregar regímenes
     return jsonify(data)
+
+@app.route('/api/market-regimes')
+def market_regimes_api():
+    """
+    V21 EAGLE EYE: Endpoint para obtener regímenes de mercado en tiempo real.
+    
+    Response:
+    {
+        "BTC": {
+            "regime": "sideways_range",
+            "adx": 9.48,
+            "ema_200": 76516.26,
+            "atr_percent": 0.06
+        },
+        ...
+    }
+    """
+    return jsonify(get_market_regimes())
 
 @app.route('/pairs')
 def pairs():
@@ -105,8 +137,94 @@ def pairs():
 
 @app.route('/api/pairs-data')
 def pairs_data_api():
-    signals = get_pairs_data()
-    return jsonify({"signals": signals})
+    session = SessionLocal()
+    try:
+        signals = session.query(PairsSignal).order_by(PairsSignal.timestamp.desc()).limit(20).all()
+        data = [{
+            "timestamp": s.timestamp.strftime('%H:%M:%S'),
+            "symbol": f"{s.asset_a}-{s.asset_b}",
+            "signal": s.signal,
+            "correlation": round(s.correlation, 2),
+            "z_score": round(s.z_score, 2),
+            "status": s.status
+        } for s in signals]
+        return jsonify({"signals": data})
+    except Exception as e:
+        logger.error(f"Error fetching pairs data: {e}")
+        return jsonify({"signals": []})
+    finally:
+        session.close()
+
+@app.route('/api/export-trades')
+def export_trades():
+    """Exporta trades a Excel con métricas de rentabilidad"""
+    symbol = request.args.get('symbol')  # Opcional: filtrar por símbolo
+    days = int(request.args.get('days', 7))  # Default: última semana
+    
+    session = SessionLocal()
+    try:
+        query = session.query(Trade)
+        
+        if symbol:
+            query = query.filter(Trade.symbol == symbol)
+        
+        # Filtrar por fecha
+        since = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(Trade.timestamp >= since)
+        
+        trades = query.order_by(Trade.timestamp.desc()).all()
+        
+        # Crear Excel
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Trading Report"
+        
+        # Headers
+        headers = ["Timestamp", "Symbol", "Side", "Amount", "Entry Price", "Exit Price", "PnL", "Status", "ROE %"]
+        ws.append(headers)
+        
+        # Data
+        for t in trades:
+            roe = (t.pnl / (t.amount * t.entry_price) * 100) if t.exit_price and t.amount * t.entry_price > 0 else 0
+            ws.append([
+                t.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                t.symbol,
+                t.side,
+                round(t.amount, 6),
+                round(t.entry_price, 2),
+                round(t.exit_price, 2) if t.exit_price else 'N/A',
+                round(t.pnl, 2) if t.pnl else 0,
+                t.status,
+                round(roe, 2)
+            ])
+        
+        # Añadir métricas al final
+        ws.append([])
+        ws.append(["SUMMARY METRICS"])
+        
+        closed_trades = [t for t in trades if t.status == 'CLOSED']
+        total_pnl = sum(t.pnl for t in closed_trades if t.pnl)
+        winning_trades = len([t for t in closed_trades if t.pnl and t.pnl > 0])
+        win_rate = (winning_trades / len(closed_trades) * 100) if closed_trades else 0
+        
+        ws.append(["Total Trades", len(trades)])
+        ws.append(["Closed Trades", len(closed_trades)])
+        ws.append(["Win Rate", f"{win_rate:.2f}%"])
+        ws.append(["Total PnL", f"${total_pnl:.2f}"])
+        
+        # Guardar en memoria
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        filename = f"trading_report_{symbol or 'all'}_{days}d.xlsx"
+        return send_file(output, download_name=filename, as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    
+    except Exception as e:
+        logger.error(f"Error exporting trades: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
 
 @app.route('/simulator')
 def simulator():
@@ -115,77 +233,64 @@ def simulator():
 
 @app.route('/api/run-simulation', methods=['POST'])
 def run_simulation():
-    """Proxy request to the Simulator Service"""
+    """Proxy endpoint para el Simulator Service"""
     try:
         data = request.json
-        # Forward to Simulator Microservice
-        # In Docker network: http://simulator:5000/run
-        # Fallback to direct calculation if local
-        simulator_url = "http://simulator:5000/run"
-        try:
-            resp = requests.post(simulator_url, json=data, timeout=30)
-            return jsonify(resp.json())
-        except requests.exceptions.RequestException:
-             # Fallback MOCK if service unreachable (for dev/demo)
-            return jsonify({
-                "status": "success",
-                "results": {
-                    "capital_final": round(data['capital'] * 1.02, 2),
-                    "retorno_total_pct": 2.0,
-                    "win_rate_pct": 60,
-                    "total_operaciones": 15,
-                    "operaciones_ganadoras": 9
-                },
-                "explanation": {
-                    "que_significa": "MOCK RESULT (Simulator Service Unreachable). Ensure container is running."
-                }
-            })
+        simulator_url = f"{config.SVC_SIMULATOR}/run"
+        resp = requests.post(simulator_url, json=data, timeout=60)
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Simulator connection error: {e}")
+        return jsonify({"status": "error", "message": f"Simulator unreachable: {str(e)}"}), 503
     except Exception as e:
-        logger.error(f"Simulation error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/run-pairs-backtest', methods=['POST'])
 def run_pairs_backtest():
-    """Proxy request to Pairs Trading Service Backtester"""
+    """Proxy endpoint para Pairs Backtesting"""
     try:
         data = request.json
-        # Forward to Pairs Microservice
         pairs_url = "http://pairs:5000/backtest"
-        try:
-            resp = requests.post(pairs_url, json=data, timeout=60) # Long timeout for backtest
-            return jsonify(resp.json())
-        except requests.exceptions.RequestException as e:
-            return jsonify({"status": "error", "message": f"Pairs Service Unreachable: {e}"})
+        resp = requests.post(pairs_url, json=data, timeout=60)
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Pairs connection error: {e}")
+        return jsonify({"status": "error", "message": f"Pairs Service Unreachable: {str(e)}"}), 503
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/asset/<symbol>')
 def asset_detail(symbol):
-    # Fetch asset specific data
-    data = {
-        "price": 0, "change": 0, "high": 0, "low": 0
-    }
+    data = {"price": 0, "change": 0, "high": 0, "low": 0}
     signals = []
     
+    # 1. Redis Realtime
     try:
-        # 1. Get latest price from market_data (or price cache)
-        # 2. Get recent signals for this symbol
-        sig_docs = db.collection('signals').where('symbol', '==', symbol).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10).stream()
-        for doc in sig_docs:
-            d = doc.to_dict()
+        ticker = memory.get(f"price:{symbol}")
+        if ticker:
+            data = {
+                "price": ticker.get('price'),
+                "change": ticker.get('change'),
+                "high": ticker.get('high'),
+                "low": ticker.get('low')
+            }
+    except Exception: pass
+
+    # 2. SQLite Signals History
+    session = SessionLocal()
+    try:
+        db_signals = session.query(Signal).filter(Signal.symbol == symbol).order_by(Signal.timestamp.desc()).limit(20).all()
+        for s in db_signals:
             signals.append({
-                "signal": d.get('signal'),
-                "price": d.get('price'),
-                "reason": d.get('reason', 'N/A'),
-                "timestamp": d.get('timestamp').strftime('%Y-%m-%d %H:%M:%S') if d.get('timestamp') else ''
+                "signal": s.signal_type,
+                "price": s.price,
+                "reason": s.reason,
+                "timestamp": s.timestamp.strftime('%Y-%m-%d %H:%M:%S')
             })
-            
-        # Mock market data for UI display if real data fetch is complex here
-        # In prod, query a 'prices' collection
-        data["price"] = 0 # Placeholder
-        
     except Exception as e:
-        logger.error(f"Error fetching asset detail for {symbol}: {e}")
+        logger.error(f"Error fetching signals for {symbol}: {e}")
+    finally:
+        session.close()
 
     return render_template('asset.html', symbol=symbol, data=data, signals=signals)
 

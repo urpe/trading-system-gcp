@@ -1,6 +1,7 @@
 flask
 gunicorn
-google-cloud-firestore
 pandas
 numpy
 requests
+redis
+SQLAlchemy

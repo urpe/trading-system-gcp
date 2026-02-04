@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # --- CORE UI ---
   dashboard:
@@ -13,14 +11,14 @@ services:
       - ./src:/app/src
 
   # --- CORE TRADING ---
-  portfolio:
-    build: .
-    command: python src/services/portfolio/main.py
-    environment:
-      - PROJECT_ID=mi-proyecto-trading-12345
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./src:/app/src
+  # portfolio:  # DISABLED V17: Orders service handles wallet/portfolio management
+  #   build: .
+  #   command: python src/services/portfolio/main.py
+  #   environment:
+  #     - PROJECT_ID=mi-proyecto-trading-12345
+  #     - PYTHONUNBUFFERED=1
+  #   volumes:
+  #     - ./src:/app/src
 
   orders:
     build: .
@@ -30,8 +28,6 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./src:/app/src
-    depends_on:
-      - portfolio
 
   brain:
     build: .
@@ -42,15 +38,27 @@ services:
     volumes:
       - ./src:/app/src
 
-  # --- ADVANCED MODULES (RESTORED) ---
-  pairs:
+  # --- V18: STRATEGY OPTIMIZER (Background Worker) ---
+  strategy-optimizer:
     build: .
-    command: python src/services/pairs/main.py
+    command: python src/services/strategy_optimizer/main.py
     environment:
       - PROJECT_ID=mi-proyecto-trading-12345
       - PYTHONUNBUFFERED=1
     volumes:
       - ./src:/app/src
+    depends_on:
+      - redis
+
+  # --- ADVANCED MODULES (RESTORED) ---
+  # pairs:  # V19.1: DISABLED - Reduce ruido del sistema, enfoque en Mean Reversion
+  #   build: .
+  #   command: python src/services/pairs/main.py
+  #   environment:
+  #     - PROJECT_ID=mi-proyecto-trading-12345
+  #     - PYTHONUNBUFFERED=1
+  #   volumes:
+  #     - ./src:/app/src
 
   simulator:
     build: .
@@ -62,13 +70,43 @@ services:
       - ./src:/app/src
 
   # --- DATA SERVICES ---
+  redis:
+    image: redis:7-alpine
+    restart: always
+    # V19 Security: Redis only accessible internally (no external port exposure)
+    # ports:
+    #   - "6379:6379"  # Commented out for security
+    volumes:
+      - ~/redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   market-data:
     build: .
     command: python src/services/market_data/main.py
     environment:
       - PROJECT_ID=mi-proyecto-trading-12345
+      - REDIS_HOST=redis
     volumes:
       - ./src:/app/src
+    depends_on:
+      - redis
+
+  persistence:
+    build: .
+    command: python src/services/persistence/main.py
+    environment:
+      - PROJECT_ID=mi-proyecto-trading-12345
+      - REDIS_HOST=redis
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      - redis
   
   historical:
     build: .

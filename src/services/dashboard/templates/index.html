@@ -5,7 +5,7 @@
     <!-- Header / Status -->
     <div class="col-12 d-flex justify-content-between align-items-center">
         <div>
-            <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 text-primary"></i> Dashboard V14</h4>
+            <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 text-primary"></i> Dashboard V19 - Adaptive Intelligence</h4>
             <p class="text-muted small mb-0">HFT Enterprise Edition • <span id="system-status" class="text-success">Operational</span></p>
         </div>
         <div class="d-flex align-items-center gap-3">
@@ -71,10 +71,32 @@
 <div class="row">
     <!-- Active Positions Table -->
     <div class="col-lg-8">
+        <!-- Market Scanner (Top 5) -->
+        <div class="card mb-4 border-info bg-dark shadow-sm">
+            <div class="card-header border-info bg-transparent d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-info"><i class="bi bi-radar"></i> Smart Market Scanner</h5>
+                <span class="badge bg-info text-dark">Live Filter (Vol > 50M)</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2" id="scanner-results">
+                    <div class="col text-center text-muted">Scanning market...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Positions -->
         <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-list-check"></i> Active Positions</h5>
-                <span class="badge bg-dark border border-secondary text-muted">Real-time</span>
+                <div class="d-flex gap-2">
+                    <a href="/api/export-trades?days=7" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-download"></i> Excel 7D
+                    </a>
+                    <a href="/api/export-trades?days=30" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-download"></i> Excel 30D
+                    </a>
+                    <span class="badge bg-dark border border-secondary text-muted">Real-time</span>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -156,6 +178,25 @@
             document.getElementById('margin-bar').style.width = `${Math.min(marginUsed, 100)}%`;
             document.getElementById('margin-used').textContent = `${marginUsed.toFixed(1)}%`;
             document.getElementById('margin-free').textContent = `${(100 - marginUsed).toFixed(1)}%`;
+
+            // Scanner Results (Top 5)
+            const scannerContainer = document.getElementById('scanner-results');
+            if (data.scanner && data.scanner.length > 0) {
+                scannerContainer.innerHTML = '';
+                data.scanner.forEach(sym => {
+                    const cleanSym = sym.replace('usdt', '').toUpperCase();
+                    scannerContainer.innerHTML += `
+                        <div class="col">
+                            <a href="/asset/${cleanSym}" class="btn btn-outline-light w-100 border-secondary position-relative">
+                                ${cleanSym} <span class="text-muted small">/ USDT</span>
+                                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle">
+                                    <span class="visually-hidden">Active</span>
+                                </span>
+                            </a>
+                        </div>
+                    `;
+                });
+            }
 
             // Table
             const tbody = document.getElementById('positions-body');

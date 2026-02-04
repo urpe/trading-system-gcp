@@ -1,6 +1,47 @@
-venv
+# Control de Versiones
 .git
-__pycache__
-*.pyc
+.gitignore
+.dockerignore
+
+# Entornos Virtuales (CRÍTICO para velocidad de build)
+venv/
+env/
 .env
+.venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.cache/
+
+# IDEs y Editores
+.vscode/
+.idea/
+.cursor/
+*.swp
 .DS_Store
+
+# Logs y Datos Locales (No subir al container)
+*.log
+logs/
+audit/
+auditoria_resultados/
+backups/
+redis_data/
+
+# Testing y Documentación
+.pytest_cache/
+.coverage
+htmlcov/
+docs/
+tests/
+notebooks/
+*.ipynb
+
+# Archivos Temporales del Sistema
+tmp/

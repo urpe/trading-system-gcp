@@ -4,16 +4,12 @@ import pandas as pd
 import pandas_ta as ta
 import requests
 from flask import Flask, request, jsonify
-from google.cloud import firestore
 from datetime import datetime, timedelta
 
 # Configuración
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Simulator")
 app = Flask(__name__)
-
-PROJECT_ID = os.environ.get("PROJECT_ID", "mi-proyecto-trading-12345")
-db = firestore.Client(project=PROJECT_ID)
 
 # Binance API URL
 BINANCE_API_URL = "https://api.binance.com/api/v3/klines"
@@ -59,22 +55,17 @@ def fetch_binance_data(symbol, interval, start_str=None):
 
 def get_historical_data(symbol, interval):
     """
-    Intenta obtener datos de Firestore, si no hay suficientes, va a Binance.
+    Obtiene datos históricos directamente de Binance API.
+    V17: Sin dependencias de Firestore.
     """
-    logger.info(f"Fetching data for {symbol} interval {interval}")
+    logger.info(f"📊 Fetching {symbol} data (interval: {interval}) from Binance API")
+    df = fetch_binance_data(symbol, interval)
     
-    # Intento 1: Firestore
-    docs = db.collection('historical_data').document(symbol).collection(interval)\
-             .order_by('timestamp').limit(1000).stream()
+    if df.empty:
+        logger.error(f"❌ No data available for {symbol} from Binance")
+    else:
+        logger.info(f"✅ Loaded {len(df)} candles for simulation")
     
-    data = [{'timestamp': d.to_dict()['timestamp'], 'close': d.to_dict()['close']} for d in docs]
-    df = pd.DataFrame(data)
-    
-    # Si hay pocos datos (< 50), usar Binance como fallback
-    if len(df) < 50:
-        logger.warning(f"Insufficient Firestore data for {symbol}. Fetching from Binance...")
-        df = fetch_binance_data(symbol, interval)
-        
     return df
 
 @app.route('/health')
@@ -186,7 +177,7 @@ def run_simulation():
                 "operaciones_ganadoras": wins
             },
             "explanation": {
-                "que_significa": f"Simulación basada en velas de {binance_interval} obtenidas de Binance/Firestore."
+                "que_significa": f"Simulación V17 basada en {len(df)} velas de {binance_interval} desde Binance API."
             }
         })
         

@@ -7,7 +7,11 @@ class MarketSelector:
         self.top_coins = []
         # Monedas base que NO queremos operar (Stablecoins)
         # Quitamos 'USDT' de esta lista para evitar falsos positivos
-        self.ignore_list = ['USDC', 'BUSD', 'DAI', 'TUSD', 'FDUSD', 'EUR', 'GBP']
+        # LISTA NEGRA AMPLIADA: Stablecoins y pares aburridos
+        self.ignore_list = [
+            'USDC', 'BUSD', 'DAI', 'TUSD', 'FDUSD', 'EUR', 'GBP', 
+            'USDP', 'USD1', 'USDD', 'WBTC', 'BTCST'
+        ]
 
     def filter_candidates(self, market_tickers):
         """
@@ -31,14 +35,18 @@ class MarketSelector:
             # 4. Convertir y validar datos
             try:
                 vol_24h = float(data.get('quoteVolume', 0)) # Volumen en USDT
-                price_change = float(data.get('priceChangePercent', 0))
+                price_change = abs(float(data.get('priceChangePercent', 0))) # Usamos valor absoluto
                 last_price = float(data.get('lastPrice', 0))
             except ValueError:
                 continue
 
-            # 5. Filtro de Liquidez Mínima (10 Millones USDT diarios)
+            # 5. Filtro de Liquidez Mínima (50 Millones USDT diarios)
             # Esto elimina monedas "basura" o ilíquidas
-            if vol_24h < 10_000_000:
+            if vol_24h < 50_000_000:
+                continue
+
+            # 6. Filtro de Volatilidad: Mínimo 1.5% de movimiento en 24h
+            if price_change < 1.5:
                 continue
 
             candidates.append({
@@ -48,18 +56,18 @@ class MarketSelector:
                 'price': last_price
             })
 
-        # 6. Ordenar por Volumen descendente (Los reyes del mercado)
+        # 7. Ordenar por Volumen descendente (Los reyes del mercado)
         candidates.sort(key=lambda x: x['volume'], reverse=True)
         
-        # 7. Seleccionar el Top 5
+        # 8. Seleccionar el Top 5
         self.top_coins = [c['symbol'] for c in candidates[:5]]
         
         # Si no encontramos nada (mercado muerto?), usar backup
         if not self.top_coins:
-            logger.warning("⚠️ No se encontraron monedas con alto volumen. Usando default.")
-            self.top_coins = ['BTCUSDT', 'ETHUSDT']
+            logger.warning("⚠️ Mercado muy quieto (Baja volatilidad). Usando clásicos.")
+            self.top_coins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
 
-        logger.info(f"🏆 Top 5 Monedas Seleccionadas: {self.top_coins}")
+        logger.info(f"🏆 Top 5 Monedas (Vol > 50M & Volatilidad > 1.5%): {self.top_coins}")
         return self.top_coins
 
     def check_rotation(self, current_portfolio, market_data):
