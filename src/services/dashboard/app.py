@@ -100,6 +100,62 @@ def get_signals_history(limit=20):
 def get_active_assets():
     return ["BTC", "ETH", "BNB", "SOL", "XRP"]
 
+def get_market_regimes():
+    """
+    V21 EAGLE EYE: Obtiene los regímenes de mercado desde Redis.
+    
+    Brain guarda en Redis: market_regime:{symbol} = {
+        "regime": "sideways_range",
+        "indicators": {"adx": 17.5, "ema_200": 68782.8, ...}
+    }
+    
+    Returns:
+        Dict con regímenes por símbolo activo
+        {
+            "BTC": {"regime": "sideways_range", "adx": 17.5, ...},
+            "ETH": {...},
+            ...
+        }
+    """
+    regimes = {}
+    
+    try:
+        # Obtener símbolos activos
+        active_symbols = get_active_symbols()
+        
+        for symbol in active_symbols:
+            # Normalizar símbolo: btcusdt -> BTC
+            symbol_clean = symbol.replace('usdt', '').replace('USDT', '').upper()
+            
+            # Leer régimen desde Redis
+            key = f"market_regime:{symbol_clean}"
+            regime_json = memory.get_client().get(key)
+            
+            if regime_json:
+                regime_data = json.loads(regime_json)
+                
+                regimes[symbol_clean] = {
+                    'regime': regime_data.get('regime', 'unknown'),
+                    'adx': regime_data.get('indicators', {}).get('adx', 0),
+                    'ema_200': regime_data.get('indicators', {}).get('ema_200', 0),
+                    'atr_percent': regime_data.get('indicators', {}).get('atr_percent', 0),
+                    'timestamp': regime_data.get('timestamp', '')
+                }
+            else:
+                # Si no hay datos en Redis, marcar como desconocido
+                regimes[symbol_clean] = {
+                    'regime': 'no_data',
+                    'adx': 0,
+                    'ema_200': 0,
+                    'atr_percent': 0,
+                    'timestamp': ''
+                }
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo regímenes de mercado: {e}")
+    
+    return regimes
+
 # --- Routes ---
 
 @app.route('/')
@@ -261,32 +317,43 @@ def run_pairs_backtest():
 
 @app.route('/asset/<symbol>')
 def asset_detail(symbol):
-    data = {"price": 0, "change": 0, "high": 0, "low": 0}
+    """
+    V21: Vista de detalle de un asset (ej: /asset/ETH)
+    Defensive Programming: Todos los valores numéricos con fallback seguro
+    """
+    # Default values: Previene TypeError si Redis no tiene datos
+    data = {"price": 0.0, "change": 0.0, "high": 0.0, "low": 0.0}
     signals = []
     
-    # 1. Redis Realtime
+    # 1. Redis Realtime Data (V21 OHLCV compatible)
     try:
         ticker = memory.get(f"price:{symbol}")
-        if ticker:
+        if ticker and isinstance(ticker, dict):
+            # Defensive: .get() con fallback a 0.0 para evitar None
             data = {
-                "price": ticker.get('price'),
-                "change": ticker.get('change'),
-                "high": ticker.get('high'),
-                "low": ticker.get('low')
+                "price": float(ticker.get('price') or ticker.get('close') or 0.0),
+                "change": float(ticker.get('change') or 0.0),
+                "high": float(ticker.get('high') or 0.0),
+                "low": float(ticker.get('low') or 0.0)
             }
-    except Exception: pass
+    except (TypeError, ValueError) as e:
+        logger.warning(f"Error parsing Redis data for {symbol}: {e}")
+    except Exception as e:
+        logger.error(f"Redis error for {symbol}: {e}")
 
     # 2. SQLite Signals History
     session = SessionLocal()
     try:
         db_signals = session.query(Signal).filter(Signal.symbol == symbol).order_by(Signal.timestamp.desc()).limit(20).all()
         for s in db_signals:
-            signals.append({
-                "signal": s.signal_type,
-                "price": s.price,
-                "reason": s.reason,
-                "timestamp": s.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-            })
+            # Defensive: Validar que signal tenga datos antes de agregar
+            if s and s.signal_type and s.price:
+                signals.append({
+                    "signal": s.signal_type,
+                    "price": float(s.price) if s.price else 0.0,
+                    "reason": s.reason or "N/A",
+                    "timestamp": s.timestamp.strftime('%Y-%m-%d %H:%M:%S') if s.timestamp else "N/A"
+                })
     except Exception as e:
         logger.error(f"Error fetching signals for {symbol}: {e}")
     finally:

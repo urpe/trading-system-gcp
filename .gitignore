@@ -7,10 +7,12 @@ __pycache__/
 env/
 venv/
 .env
+.venv/
 
-# IDE
+# IDE & Editors
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 
@@ -18,10 +20,46 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs (CRITICAL: Evita subir logs pesados a Git)
 *.log
+logs/
+audit/
+auditoria_resultados/
 
 # Secrets (NUNCA subir credenciales)
 *.pem
 *.key
 secrets.json
+credentials.json
+service-account.json
+
+# Redis Data (NO subir bases de datos)
+redis_data/
+*.rdb
+appendonly.aof
+
+# SQLite Databases (NO subir DB local de desarrollo)
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups & Temporary Files
+backups/
+tmp/
+*.tmp
+
+# Docker Cache (Opcional: Acelera builds locales)
+.dockerignore
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebooks (Desarrollo local)
+*.ipynb
+.ipynb_checkpoints/
+
+# Plans & Documentation (Opcional: Mantener fuera de producción)
+*.plan.md
+.cursor/plans/

@@ -9,6 +9,11 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./src:/app/src
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # --- CORE TRADING ---
   # portfolio:  # DISABLED V17: Orders service handles wallet/portfolio management
@@ -28,6 +33,11 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./src:/app/src
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   brain:
     build: .
@@ -37,6 +47,11 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./src:/app/src
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # --- V18: STRATEGY OPTIMIZER (Background Worker) ---
   strategy-optimizer:
@@ -49,6 +64,11 @@ services:
       - ./src:/app/src
     depends_on:
       - redis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # --- ADVANCED MODULES (RESTORED) ---
   # pairs:  # V19.1: DISABLED - Reduce ruido del sistema, enfoque en Mean Reversion
@@ -68,6 +88,11 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./src:/app/src
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # --- DATA SERVICES ---
   redis:
@@ -78,12 +103,21 @@ services:
     #   - "6379:6379"  # Commented out for security
     volumes:
       - ~/redis_data:/data
-    command: redis-server --appendonly yes
+    # FinOps V21.1: Optimizar AOF para reducir IOPS
+    # appendfsync no -> Sin sincronización (más rápido, menos seguro)
+    # appendfsync everysec -> Sync cada segundo (balance)
+    # appendfsync always -> Sync cada comando (lento, muy seguro)
+    command: redis-server --appendonly yes --appendfsync no --save ""
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   market-data:
     build: .
@@ -95,6 +129,11 @@ services:
       - ./src:/app/src
     depends_on:
       - redis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   persistence:
     build: .
@@ -107,16 +146,32 @@ services:
       - ./src:/app/src
     depends_on:
       - redis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
   
   historical:
     build: .
     command: python src/services/historical/main.py
     volumes:
       - ./src:/app/src
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   alerts:
     build: .
     command: python src/services/alerts/main.py
     volumes:
       - ./src:/app/src
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 
