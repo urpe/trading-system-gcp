@@ -184,11 +184,12 @@
             if (data.scanner && data.scanner.length > 0) {
                 scannerContainer.innerHTML = '';
                 data.scanner.forEach(sym => {
-                    const cleanSym = sym.replace('usdt', '').toUpperCase();
+                    // V21.2: Backend ya envía símbolos normalizados (ej: "BTC")
+                    // No necesitamos lógica de normalización en frontend
                     scannerContainer.innerHTML += `
                         <div class="col">
-                            <a href="/asset/${cleanSym}" class="btn btn-outline-light w-100 border-secondary position-relative">
-                                ${cleanSym} <span class="text-muted small">/ USDT</span>
+                            <a href="/asset/${sym}" class="btn btn-outline-light w-100 border-secondary position-relative">
+                                ${sym} <span class="text-muted small">/ USDT</span>
                                 <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle">
                                     <span class="visually-hidden">Active</span>
                                 </span>

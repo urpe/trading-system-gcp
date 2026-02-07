@@ -212,9 +212,23 @@ def index():
 
 @app.route('/api/dashboard-data')
 def dashboard_data():
+    """
+    V21.2: Endpoint principal con símbolos ya normalizados para el frontend.
+    """
     data = get_wallet_data()
-    data['scanner'] = get_active_symbols()
-    data['regimes'] = get_market_regimes()  # V21: Agregar regímenes
+    
+    # V21.2: Normalizar active_symbols antes de enviar al frontend
+    active_symbols_raw = get_active_symbols()
+    data['scanner'] = []
+    
+    for symbol_raw in active_symbols_raw:
+        try:
+            symbol_normalized = normalize_symbol(symbol_raw, format='short')
+            data['scanner'].append(symbol_normalized)
+        except ValueError as e:
+            logger.error(f"❌ Error normalizando símbolo en scanner: {symbol_raw}: {e}")
+    
+    data['regimes'] = get_market_regimes()
     return jsonify(data)
 
 @app.route('/api/market-regimes')

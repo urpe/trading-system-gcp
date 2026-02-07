@@ -72,12 +72,12 @@ def get_open_positions_count():
 
 def stop_loss_worker():
     """
-    V19.1: Worker que verifica stop loss cada 30 segundos.
+    V21.2: Worker que verifica stop loss cada 30 segundos con normalización.
     Cierra automáticamente posiciones con pérdida > -2%
     """
     import time
     
-    logger.info("🛡️ Stop Loss Worker iniciado (check cada 30s)")
+    logger.info("🛡️ Stop Loss Worker V21.2 iniciado (check cada 30s)")
     
     while True:
         try:
@@ -93,34 +93,54 @@ def stop_loss_worker():
                 
                 # Verificar cada posición
                 for trade in open_trades:
-                    # Obtener precio actual desde Redis
-                    current_price_key = f"price:{trade.symbol}"
-                    current_price_str = memory.get_client().get(current_price_key)
+                    try:
+                        # V21.2: NORMALIZACIÓN - Asegurar formato consistente con Redis
+                        symbol_normalized = normalize_symbol(trade.symbol, format='short')
+                        current_price_key = f"price:{symbol_normalized}"
+                        
+                        # Obtener precio actual desde Redis (formato OHLCV)
+                        price_data = memory.get(current_price_key)
+                        
+                        if not price_data:
+                            logger.warning(f"⚠️ Stop Loss: No se encontró precio para {trade.symbol} (key: {current_price_key})")
+                            continue
+                        
+                        # V21.2: Manejar formato OHLCV
+                        if isinstance(price_data, dict):
+                            current_price = float(price_data.get('close') or price_data.get('price') or 0)
+                        else:
+                            current_price = float(price_data)
+                        
+                        if current_price <= 0:
+                            logger.warning(f"⚠️ Stop Loss: Precio inválido para {trade.symbol}: {current_price}")
+                            continue
+                        
+                        # Calcular PnL %
+                        pnl_pct = ((current_price - trade.entry_price) / trade.entry_price) * 100
+                        
+                        # Trigger stop loss si pérdida > threshold
+                        if pnl_pct <= -config.STOP_LOSS_PCT:
+                            logger.warning(f"🛑 STOP LOSS TRIGGERED: {symbol_normalized} @ ${current_price:.2f} (PnL: {pnl_pct:.1f}%)")
+                            
+                            # Ejecutar venta forzada - publicar señal de SELL en Redis
+                            stop_loss_signal = {
+                                "symbol": symbol_normalized,  # V21.2: Normalizado
+                                "type": "SELL",
+                                "price": current_price,
+                                "timestamp": datetime.utcnow().isoformat(),
+                                "reason": f"STOP_LOSS triggered (PnL: {pnl_pct:.1f}%)",
+                                "force": True  # Flag para indicar venta forzada
+                            }
+                            
+                            memory.publish('signals', stop_loss_signal)
+                            logger.info(f"📤 Stop loss signal published for {symbol_normalized}")
                     
-                    if not current_price_str:
+                    except ValueError as e:
+                        logger.error(f"❌ Error normalizando símbolo '{trade.symbol}': {e}")
                         continue
-                    
-                    current_price = float(current_price_str)
-                    
-                    # Calcular PnL %
-                    pnl_pct = ((current_price - trade.entry_price) / trade.entry_price) * 100
-                    
-                    # Trigger stop loss si pérdida > threshold
-                    if pnl_pct <= -config.STOP_LOSS_PCT:
-                        logger.warning(f"🛑 STOP LOSS TRIGGERED: {trade.symbol} @ ${current_price:.2f} (PnL: {pnl_pct:.1f}%)")
-                        
-                        # Ejecutar venta forzada - publicar señal de SELL en Redis
-                        stop_loss_signal = {
-                            "symbol": trade.symbol,
-                            "type": "SELL",
-                            "price": current_price,
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "reason": f"STOP_LOSS triggered (PnL: {pnl_pct:.1f}%)",
-                            "force": True  # Flag para indicar venta forzada
-                        }
-                        
-                        memory.publish('signals', stop_loss_signal)
-                        logger.info(f"📤 Stop loss signal published for {trade.symbol}")
+                    except Exception as e:
+                        logger.error(f"❌ Error procesando trade {trade.id}: {e}")
+                        continue
                         
             except Exception as e:
                 logger.error(f"Error en stop loss worker: {e}")
