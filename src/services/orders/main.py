@@ -3,17 +3,17 @@ import json
 import logging
 from datetime import datetime
 from src.config.settings import config
-from src.shared.utils import get_logger
+from src.shared.utils import get_logger, normalize_symbol
 from src.shared.memory import memory
 from src.shared.database import init_db, SessionLocal, Trade, Wallet
 
-logger = get_logger("OrdersSvc")
+logger = get_logger("OrdersSvcV21.2")
 
 # Inicializar Base de Datos
 init_db()
 
-# Configuración de Trading
-MAX_OPEN_POSITIONS = 5
+# V21.2: Usar configuración centralizada (NO hard-coded values)
+MAX_OPEN_POSITIONS = config.MAX_OPEN_POSITIONS  # 2 (desde settings.py)
 TRADE_AMOUNT_USD = config.TRADE_AMOUNT
 
 def initialize_wallet():

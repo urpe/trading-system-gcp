@@ -16,6 +16,110 @@ def get_logger(service_name: str) -> logging.Logger:
         logger.setLevel(config.LOG_LEVEL)
     return logger
 
+def normalize_symbol(symbol: str, format: str = 'short') -> str:
+    """
+    V21.2: NORMALIZACIÓN UNIFICADA DE SÍMBOLOS
+    ==========================================
+    Soluciona el problema de inconsistencias entre servicios (BTC vs BTCUSDT).
+    
+    Args:
+        symbol: El símbolo a normalizar (puede venir como "BTC", "btc", "BTCUSDT", "btcusdt")
+        format: 'short' (default) -> "BTC" | 'long' -> "BTCUSDT" | 'lower' -> "btcusdt"
+    
+    Returns:
+        str: Símbolo normalizado según el formato solicitado
+    
+    Ejemplos:
+        normalize_symbol("btcusdt")           -> "BTC"
+        normalize_symbol("BTCUSDT")           -> "BTC"
+        normalize_symbol("BTC")               -> "BTC"
+        normalize_symbol("eth", format="long") -> "ETHUSDT"
+        normalize_symbol("SOL", format="lower") -> "solusdt"
+    
+    CRITICAL: Esta función DEBE ser usada por TODOS los servicios antes de:
+    - Escribir claves en Redis (price:{symbol}, market_regime:{symbol})
+    - Leer claves desde Redis
+    - Consultar APIs externas (Binance)
+    """
+    if not symbol:
+        raise ValueError("Symbol cannot be empty")
+    
+    # Paso 1: Normalizar a uppercase y remover espacios
+    clean = symbol.strip().upper()
+    
+    # Paso 2: Remover "USDT" si existe (para obtener base)
+    base = clean.replace('USDT', '')
+    
+    # Paso 3: Validar que no esté vacío después de limpiar
+    if not base:
+        raise ValueError(f"Invalid symbol after normalization: {symbol}")
+    
+    # Paso 4: Aplicar formato solicitado
+    if format == 'short':
+        return base  # "BTC"
+    elif format == 'long':
+        return f"{base}USDT"  # "BTCUSDT"
+    elif format == 'lower':
+        return f"{base.lower()}usdt"  # "btcusdt"
+    else:
+        raise ValueError(f"Invalid format: {format}. Use 'short', 'long', or 'lower'")
+
+def fetch_binance_klines(symbol: str, interval: str = '1m', limit: int = 200) -> list:
+    """
+    V21.2: WARM-UP HELPER - Descarga velas históricas de Binance
+    ==============================================================
+    Usado por Brain/Market Data para llenar historial inicial sin esperar 3+ horas.
+    
+    Args:
+        symbol: Símbolo base (ej: "BTC", no "BTCUSDT")
+        interval: Intervalo de velas (1m, 5m, 1h, etc.)
+        limit: Cantidad de velas (max 1000 por Binance API)
+    
+    Returns:
+        Lista de diccionarios OHLCV: [{"open": float, "high": float, "low": float, "close": float, "volume": float}, ...]
+    """
+    logger = get_logger("BinanceKlinesFetcher")
+    
+    # Normalizar símbolo al formato largo de Binance
+    binance_symbol = normalize_symbol(symbol, format='long')
+    
+    url = "https://api.binance.com/api/v3/klines"
+    params = {
+        'symbol': binance_symbol,
+        'interval': interval,
+        'limit': limit
+    }
+    
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        
+        klines = response.json()
+        
+        # Validar respuesta
+        if isinstance(klines, dict) and 'code' in klines:
+            logger.error(f"❌ Binance API error: {klines}")
+            return []
+        
+        # Convertir a formato OHLCV estándar
+        ohlcv_data = []
+        for k in klines:
+            ohlcv_data.append({
+                'timestamp': int(k[0]) / 1000,  # OpenTime en segundos
+                'open': float(k[1]),
+                'high': float(k[2]),
+                'low': float(k[3]),
+                'close': float(k[4]),
+                'volume': float(k[5])
+            })
+        
+        logger.info(f"✅ Descargadas {len(ohlcv_data)} velas de {binance_symbol} ({interval})")
+        return ohlcv_data
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching klines for {binance_symbol}: {e}")
+        return []
+
 def robust_http_request(method: str, url: str, json_data: dict = None, max_retries: int = 3):
     """Realiza peticiones HTTP con Exponential Backoff (Circuit Breaker Light)"""
     logger = get_logger("SharedNetwork")

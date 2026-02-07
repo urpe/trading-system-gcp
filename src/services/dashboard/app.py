@@ -1,6 +1,6 @@
 from flask import Flask, render_template, jsonify, request, send_file
 from src.config.settings import config
-from src.shared.utils import get_logger
+from src.shared.utils import get_logger, normalize_symbol
 from src.shared.memory import memory # Redis Client
 from src.shared.database import SessionLocal, Signal, Trade, Wallet, PairsSignal # Local DB
 import requests
@@ -9,20 +9,47 @@ from datetime import datetime, timedelta
 from openpyxl import Workbook
 from io import BytesIO
 
-logger = get_logger("Dashboard")
+logger = get_logger("DashboardV21.2")
 app = Flask(__name__)
 
 # --- Helper Functions ---
 
 def get_realtime_price(symbol):
-    """Fetch realtime price from Redis cache using Shared Memory."""
+    """
+    V21.2: Fetch realtime price from Redis con normalización y logging mejorado.
+    
+    Args:
+        symbol: Símbolo (se normalizará automáticamente)
+    
+    Returns:
+        float: Precio actual o 0 si no se encuentra
+    """
     try:
-        data = memory.get(f"price:{symbol}")
+        # V21.2: Normalizar símbolo antes de buscar en Redis
+        symbol_normalized = normalize_symbol(symbol, format='short')
+        key = f"price:{symbol_normalized}"
+        
+        data = memory.get(key)
+        
         if data and isinstance(data, dict):
-            return data.get('price', 0)
+            # V21: Priorizar 'close' sobre 'price' (formato OHLCV)
+            price = data.get('close') or data.get('price')
+            if price:
+                return float(price)
+            else:
+                logger.warning(f"⚠️ Dashboard: Redis key '{key}' exists but has no price/close field: {data}")
+                return 0
+        else:
+            # V21.2: NO masking silencioso - Log explícito de key miss
+            logger.warning(f"⚠️ Dashboard Key Miss: '{key}' not found in Redis or not a dict (type: {type(data)})")
+            return 0
+    
+    except ValueError as e:
+        logger.error(f"❌ Error normalizando símbolo '{symbol}': {e}")
+        return 0
     except Exception as e:
-        logger.error(f"Redis Error get_realtime_price({symbol}): {e}")
-    return 0
+        logger.error(f"❌ Redis Error get_realtime_price({symbol}): {e}")
+        return 0
 
 def get_active_symbols():
     """Fetch Top 5 Monitored Symbols from Redis."""
@@ -102,34 +129,55 @@ def get_active_assets():
 
 def get_market_regimes():
     """
-    V21 EAGLE EYE: Obtiene los regímenes de mercado desde Redis.
-    
-    Brain guarda en Redis: market_regime:{symbol} = {
-        "regime": "sideways_range",
-        "indicators": {"adx": 17.5, "ema_200": 68782.8, ...}
-    }
+    V21.2: Obtiene los regímenes de mercado desde Redis con normalización.
     
     Returns:
-        Dict con regímenes por símbolo activo
-        {
-            "BTC": {"regime": "sideways_range", "adx": 17.5, ...},
-            "ETH": {...},
-            ...
-        }
+        Dict con regímenes por símbolo activo normalizado
     """
     regimes = {}
     
     try:
         # Obtener símbolos activos
-        active_symbols = get_active_symbols()
+        active_symbols_raw = get_active_symbols()
         
-        for symbol in active_symbols:
-            # Normalizar símbolo: btcusdt -> BTC
-            symbol_clean = symbol.replace('usdt', '').replace('USDT', '').upper()
+        for symbol_raw in active_symbols_raw:
+            try:
+                # V21.2: Normalizar símbolo
+                symbol_normalized = normalize_symbol(symbol_raw, format='short')
+                
+                # Leer régimen desde Redis
+                key = f"market_regime:{symbol_normalized}"
+                regime_json = memory.get_client().get(key)
+                
+                if regime_json:
+                    regime_data = json.loads(regime_json)
+                    
+                    regimes[symbol_normalized] = {
+                        'regime': regime_data.get('regime', 'unknown'),
+                        'adx': regime_data.get('indicators', {}).get('adx', 0),
+                        'ema_200': regime_data.get('indicators', {}).get('ema_200', 0),
+                        'atr_percent': regime_data.get('indicators', {}).get('atr_percent', 0),
+                        'timestamp': regime_data.get('timestamp', '')
+                    }
+                else:
+                    # V21.2: Log explícito de key miss
+                    logger.warning(f"⚠️ Dashboard: Régimen no encontrado para {symbol_normalized} (key: {key})")
+                    regimes[symbol_normalized] = {
+                        'regime': 'no_data',
+                        'adx': 0,
+                        'ema_200': 0,
+                        'atr_percent': 0,
+                        'timestamp': ''
+                    }
             
-            # Leer régimen desde Redis
-            key = f"market_regime:{symbol_clean}"
-            regime_json = memory.get_client().get(key)
+            except ValueError as e:
+                logger.error(f"❌ Error normalizando símbolo '{symbol_raw}': {e}")
+                continue
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo regímenes de mercado: {e}")
+    
+    return regimes
             
             if regime_json:
                 regime_data = json.loads(regime_json)
@@ -318,35 +366,58 @@ def run_pairs_backtest():
 @app.route('/asset/<symbol>')
 def asset_detail(symbol):
     """
-    V21: Vista de detalle de un asset (ej: /asset/ETH)
-    Defensive Programming: Todos los valores numéricos con fallback seguro
+    V21.2: Vista de detalle de un asset con normalización y logging mejorado.
+    
+    Args:
+        symbol: Símbolo del asset (ej: "ETH", "eth", "ethusdt")
+    
+    Returns:
+        Página HTML con datos del asset o mensaje de error
     """
-    # Default values: Previene TypeError si Redis no tiene datos
+    # V21.2: Normalizar símbolo primero
+    try:
+        symbol_normalized = normalize_symbol(symbol, format='short')
+    except ValueError as e:
+        logger.error(f"❌ Símbolo inválido en /asset/{symbol}: {e}")
+        return render_template('asset.html', symbol=symbol, 
+                              data={"price": 0.0, "change": 0.0, "high": 0.0, "low": 0.0}, 
+                              signals=[], 
+                              error=f"Símbolo inválido: {symbol}")
+    
+    # Default values
     data = {"price": 0.0, "change": 0.0, "high": 0.0, "low": 0.0}
     signals = []
     
     # 1. Redis Realtime Data (V21 OHLCV compatible)
     try:
-        ticker = memory.get(f"price:{symbol}")
+        key = f"price:{symbol_normalized}"
+        ticker = memory.get(key)
+        
         if ticker and isinstance(ticker, dict):
-            # Defensive: .get() con fallback a 0.0 para evitar None
+            # V21: OHLCV format - priorizar 'close' sobre 'price'
             data = {
-                "price": float(ticker.get('price') or ticker.get('close') or 0.0),
+                "price": float(ticker.get('close') or ticker.get('price') or 0.0),
                 "change": float(ticker.get('change') or 0.0),
                 "high": float(ticker.get('high') or 0.0),
                 "low": float(ticker.get('low') or 0.0)
             }
+        else:
+            # V21.2: NO masking - Log explícito de key miss
+            logger.warning(f"⚠️ Dashboard /asset/{symbol}: Key '{key}' not found or invalid type (type: {type(ticker)})")
+    
     except (TypeError, ValueError) as e:
-        logger.warning(f"Error parsing Redis data for {symbol}: {e}")
+        logger.warning(f"⚠️ Error parsing Redis data for {symbol_normalized}: {e}")
     except Exception as e:
-        logger.error(f"Redis error for {symbol}: {e}")
+        logger.error(f"❌ Redis error for {symbol_normalized}: {e}")
 
     # 2. SQLite Signals History
     session = SessionLocal()
     try:
-        db_signals = session.query(Signal).filter(Signal.symbol == symbol).order_by(Signal.timestamp.desc()).limit(20).all()
+        db_signals = session.query(Signal).filter(
+            Signal.symbol == symbol_normalized
+        ).order_by(Signal.timestamp.desc()).limit(20).all()
+        
         for s in db_signals:
-            # Defensive: Validar que signal tenga datos antes de agregar
             if s and s.signal_type and s.price:
                 signals.append({
                     "signal": s.signal_type,
@@ -355,11 +426,11 @@ def asset_detail(symbol):
                     "timestamp": s.timestamp.strftime('%Y-%m-%d %H:%M:%S') if s.timestamp else "N/A"
                 })
     except Exception as e:
-        logger.error(f"Error fetching signals for {symbol}: {e}")
+        logger.error(f"❌ Error fetching signals for {symbol_normalized}: {e}")
     finally:
         session.close()
 
-    return render_template('asset.html', symbol=symbol, data=data, signals=signals)
+    return render_template('asset.html', symbol=symbol_normalized, data=data, signals=signals)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8050, debug=True)

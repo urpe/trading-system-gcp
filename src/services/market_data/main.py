@@ -13,7 +13,7 @@ import aiohttp
 from websockets import connect
 from aiohttp import web
 from src.shared.memory import memory # <--- NEW SHARED CLIENT
-from src.shared.utils import get_logger
+from src.shared.utils import get_logger, normalize_symbol
 
 # --- IMPORTACIÓN DEL NUEVO CEREBRO FINANCIERO ---
 from analyzer.selection_logic import MarketSelector
@@ -53,14 +53,14 @@ async def fetch_binance_ticker_24hr():
 
 async def fetch_latest_kline(symbol: str) -> dict:
     """
-    V21 EAGLE EYE: Obtiene la última vela cerrada de 1 minuto desde Binance.
+    V21.2: Obtiene la última vela cerrada de 1 minuto desde Binance con normalización.
     
-    Endpoint: GET /api/v3/klines
-    Params: symbol=BTCUSDT, interval=1m, limit=1
+    Args:
+        symbol: Símbolo (puede venir como "btcusdt", "BTC", o "BTCUSDT")
     
     Returns:
         {
-            "symbol": "BTC",
+            "symbol": "BTC",  # SIEMPRE formato corto normalizado
             "timestamp": 1709...,
             "open": 75000.0,
             "high": 75500.0,
@@ -71,9 +71,13 @@ async def fetch_latest_kline(symbol: str) -> dict:
     """
     url = "https://api.binance.com/api/v3/klines"
     
-    # Normalizar símbolo: si viene "btcusdt" -> "BTCUSDT", si viene "btc" -> "BTCUSDT"
-    symbol_clean = symbol.replace('usdt', '').replace('USDT', '').upper()
-    binance_symbol = f"{symbol_clean}USDT"
+    # V21.2: NORMALIZACIÓN - Usar función compartida
+    try:
+        symbol_normalized = normalize_symbol(symbol, format='short')  # "BTC"
+        binance_symbol = normalize_symbol(symbol, format='long')     # "BTCUSDT"
+    except ValueError as e:
+        logger.error(f"❌ Error normalizando símbolo '{symbol}': {e}")
+        return None
     
     params = {
         "symbol": binance_symbol,
@@ -92,7 +96,7 @@ async def fetch_latest_kline(symbol: str) -> dict:
                         
                         # Binance kline format: [OpenTime, Open, High, Low, Close, Volume, ...]
                         return {
-                            "symbol": symbol_clean,  # Ya normalizado arriba
+                            "symbol": symbol_normalized,  # CRÍTICO: Formato corto consistente
                             "timestamp": int(kline[0]) / 1000,  # Convert to seconds
                             "open": float(kline[1]),
                             "high": float(kline[2]),

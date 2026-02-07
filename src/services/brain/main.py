@@ -15,15 +15,15 @@ import time
 import json
 from collections import deque
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from src.config.settings import config
-from src.shared.utils import get_logger
+from src.shared.utils import get_logger, normalize_symbol, fetch_binance_klines
 from src.shared.memory import memory
 from src.services.brain.strategies import AVAILABLE_STRATEGIES
 from src.services.brain.strategies.base import StrategyInterface
 from src.services.brain.strategies.regime_detector import RegimeDetector, MarketRegime
 
-logger = get_logger("BrainV19")
+logger = get_logger("BrainV21.2")
 
 
 class RegimeSwitchingBrain:
@@ -54,9 +54,75 @@ class RegimeSwitchingBrain:
         self.last_signal_time: Dict[str, datetime] = {}  # {symbol: last_signal_timestamp}
         self.cooldown_minutes = 10  # 10 minutos cooldown por símbolo
         
-        logger.info("🦅 Brain V21 EAGLE EYE - OHLCV Intelligence + Cooldown Initialized")
+        logger.info("🦅 Brain V21.2 - SYNCHRONIZED ARCHITECTURE Initialized")
         logger.info(f"📊 {len(AVAILABLE_STRATEGIES)} estrategias disponibles")
         logger.info(f"⏳ Cooldown: {self.cooldown_minutes} minutos por símbolo")
+    
+    def warm_up_history(self, symbols: List[str]):
+        """
+        V21.2: INSTANT WARM-UP SYSTEM
+        ==============================
+        Soluciona el "Cold Start Blindness": Descarga las últimas 200 velas de Binance
+        al iniciar el sistema, eliminando la espera de 3.3 horas.
+        
+        Args:
+            symbols: Lista de símbolos a pre-cargar (ej: ["BTC", "ETH", "SOL"])
+        
+        Tiempo estimado: 5-10 segundos (vs 3.3 horas del sistema anterior)
+        """
+        logger.info("=" * 80)
+        logger.info("🔥 WARM-UP SYSTEM ACTIVADO: Descargando historial inicial...")
+        logger.info(f"   Símbolos: {symbols}")
+        logger.info(f"   Objetivo: {self.max_history_size} velas por símbolo (1m interval)")
+        logger.info("=" * 80)
+        
+        for symbol in symbols:
+            try:
+                # Normalizar símbolo (puede venir como "btcusdt" o "BTC")
+                symbol_normalized = normalize_symbol(symbol, format='short')
+                
+                logger.info(f"📥 Warm-up: {symbol_normalized}...")
+                
+                # Descargar últimas 200 velas de 1m
+                klines = fetch_binance_klines(symbol_normalized, interval='1m', limit=self.max_history_size)
+                
+                if not klines:
+                    logger.warning(f"⚠️ No se pudo descargar historial para {symbol_normalized}")
+                    continue
+                
+                # Inicializar deques
+                if symbol_normalized not in self.price_history:
+                    self.price_history[symbol_normalized] = deque(maxlen=self.max_history_size)
+                    self.high_history[symbol_normalized] = deque(maxlen=self.max_history_size)
+                    self.low_history[symbol_normalized] = deque(maxlen=self.max_history_size)
+                
+                # Llenar historial con datos descargados
+                for kline in klines:
+                    self.price_history[symbol_normalized].append(kline['close'])
+                    self.high_history[symbol_normalized].append(kline['high'])
+                    self.low_history[symbol_normalized].append(kline['low'])
+                
+                # Detectar régimen inmediatamente
+                regime = self.detect_market_regime(symbol_normalized)
+                regime_emoji = {
+                    'bull_trend': '📈',
+                    'bear_trend': '📉',
+                    'sideways_range': '↔️',
+                    'high_volatility': '🔥',
+                    'unknown': '❓'
+                }.get(regime.value if regime else 'unknown', '❓')
+                
+                logger.info(f"✅ {symbol_normalized}: {len(self.price_history[symbol_normalized])} velas cargadas | "
+                           f"Régimen: {regime_emoji} {regime.value if regime else 'unknown'} | "
+                           f"Último precio: ${klines[-1]['close']:.2f}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error en warm-up de {symbol}: {e}", exc_info=True)
+        
+        logger.info("=" * 80)
+        logger.info(f"🎯 WARM-UP COMPLETADO: {len(self.price_history)} símbolos listos para trading")
+        logger.info("   ⚡ Sistema operativo en <10 segundos (vs 3.3 horas anterior)")
+        logger.info("=" * 80)
     
     def load_strategy_for_symbol(self, symbol: str) -> Optional[StrategyInterface]:
         """
@@ -175,7 +241,7 @@ class RegimeSwitchingBrain:
     
     def process_market_update(self, message):
         """
-        Procesa actualización de precio y genera señales con estrategia dinámica + regime awareness.
+        V21.2: Procesa actualización OHLCV con normalización de símbolos.
         """
         try:
             data = json.loads(message['data'])
@@ -187,7 +253,14 @@ class RegimeSwitchingBrain:
                 coin_list = [data]
             
             for coin_data in coin_list:
-                symbol = coin_data.get('symbol')
+                symbol_raw = coin_data.get('symbol')
+                
+                # V21.2: NORMALIZACIÓN CRÍTICA - Asegurar formato consistente
+                try:
+                    symbol = normalize_symbol(symbol_raw, format='short')
+                except ValueError as e:
+                    logger.error(f"❌ Error normalizando símbolo '{symbol_raw}': {e}")
+                    continue
                 
                 # V21: Validar estructura OHLCV
                 required_keys = ['open', 'high', 'low', 'close']
@@ -320,9 +393,9 @@ class RegimeSwitchingBrain:
     
     def run(self):
         """
-        Loop principal del Brain.
+        V21.2: Loop principal del Brain con Warm-up System.
         """
-        logger.info("🧠 Brain V19 (Regime Switching Intelligence) Started...")
+        logger.info("🧠 Brain V21.2 (Synchronized Architecture + Warm-up) Started...")
         logger.info(f"   📊 Estrategias: {', '.join(AVAILABLE_STRATEGIES.keys())}")
         logger.info(f"   🎯 Regime Detection: ADX + EMA(200)")
         
@@ -331,6 +404,26 @@ class RegimeSwitchingBrain:
             time.sleep(5)
             return
         
+        # V21.2: WARM-UP SYSTEM - Obtener símbolos activos y pre-cargar historial
+        try:
+            active_symbols_raw = memory.get("active_symbols")
+            
+            if active_symbols_raw and isinstance(active_symbols_raw, list):
+                # Normalizar símbolos (pueden venir como "btcusdt" o ["btcusdt", "ethusdt"])
+                active_symbols = [normalize_symbol(s, format='short') for s in active_symbols_raw]
+            else:
+                # Fallback a símbolos por defecto
+                logger.warning("⚠️ No se encontraron active_symbols en Redis, usando default")
+                active_symbols = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP']
+            
+            # Ejecutar warm-up (descarga 200 velas por símbolo)
+            self.warm_up_history(active_symbols)
+            
+        except Exception as e:
+            logger.error(f"❌ Error en warm-up system: {e}", exc_info=True)
+            logger.warning("⚠️ Continuando sin warm-up (modo legacy: espera 3.3 horas)")
+        
+        # Suscribirse a updates en tiempo real
         pubsub = self.redis_client.pubsub()
         pubsub.subscribe('market_data')
         
