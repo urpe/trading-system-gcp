@@ -178,31 +178,6 @@ def get_market_regimes():
         logger.error(f"❌ Error obteniendo regímenes de mercado: {e}")
     
     return regimes
-            
-            if regime_json:
-                regime_data = json.loads(regime_json)
-                
-                regimes[symbol_clean] = {
-                    'regime': regime_data.get('regime', 'unknown'),
-                    'adx': regime_data.get('indicators', {}).get('adx', 0),
-                    'ema_200': regime_data.get('indicators', {}).get('ema_200', 0),
-                    'atr_percent': regime_data.get('indicators', {}).get('atr_percent', 0),
-                    'timestamp': regime_data.get('timestamp', '')
-                }
-            else:
-                # Si no hay datos en Redis, marcar como desconocido
-                regimes[symbol_clean] = {
-                    'regime': 'no_data',
-                    'adx': 0,
-                    'ema_200': 0,
-                    'atr_percent': 0,
-                    'timestamp': ''
-                }
-        
-    except Exception as e:
-        logger.error(f"❌ Error obteniendo regímenes de mercado: {e}")
-    
-    return regimes
 
 # --- Routes ---
 
