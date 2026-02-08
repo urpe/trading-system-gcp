@@ -95,8 +95,14 @@ def stop_loss_worker():
                 # Verificar cada posición
                 for trade in open_trades:
                     try:
-                        # V21.3: Parse to TradingSymbol (validates automatically)
-                        symbol = TradingSymbol.from_str(trade.symbol)
+                        # V22.1: trade.symbol is already a TradingSymbol object
+                        symbol = trade.symbol  # Already a TradingSymbol object
+                        
+                        # Backward compatibility: Handle old string format if exists
+                        if isinstance(symbol, str):
+                            logger.warning(f"⚠️ Old string format detected: {symbol}")
+                            symbol = TradingSymbol.from_str(symbol)
+                        
                         current_price_key = symbol.to_redis_key("price")  # "price:BTC"
                         
                         # Obtener precio actual desde Redis (formato OHLCV)
