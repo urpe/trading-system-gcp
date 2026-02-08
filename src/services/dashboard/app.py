@@ -16,19 +16,26 @@ app = Flask(__name__)
 
 # --- Helper Functions ---
 
-def get_realtime_price(symbol_str):
+def get_realtime_price(symbol_input):
     """
-    V21.3: Fetch realtime price from Redis usando TradingSymbol Value Object.
+    V22.1: Fetch realtime price from Redis usando TradingSymbol Value Object.
     
     Args:
-        symbol_str: Símbolo en cualquier formato (será parseado a TradingSymbol)
+        symbol_input: TradingSymbol object o string (backward compatibility)
     
     Returns:
         float: Precio actual o 0 si no se encuentra
     """
     try:
-        # V21.3: Parse to TradingSymbol (validates automatically)
-        symbol = TradingSymbol.from_str(symbol_str)
+        # V22.1: Handle both strings and TradingSymbol objects
+        if isinstance(symbol_input, TradingSymbol):
+            symbol = symbol_input  # ✅ Already a TradingSymbol object
+        elif isinstance(symbol_input, str):
+            symbol = TradingSymbol.from_str(symbol_input)  # Parse string
+        else:
+            logger.error(f"❌ Invalid symbol type: {type(symbol_input)}")
+            return 0.0
+        
         key = symbol.to_redis_key("price")  # "price:BTC"
         
         data = memory.get(key)
@@ -92,9 +99,12 @@ def get_wallet_data():
             
             val = t.amount * current_price
             
+            # V22.1: Convert TradingSymbol to string for JSON serialization
+            symbol_str = t.symbol.to_short() if isinstance(t.symbol, TradingSymbol) else str(t.symbol)
+            
             wallet['positions'].append({
                 "type": t.side,
-                "symbol": t.symbol,
+                "symbol": symbol_str,  # ✅ JSON-safe string
                 "amount": round(t.amount, 4),
                 "current_price": round(current_price, 2),
                 "value": round(val, 2),
@@ -116,9 +126,12 @@ def get_signals_history(limit=20):
     try:
         db_signals = session.query(Signal).order_by(Signal.timestamp.desc()).limit(limit).all()
         for s in db_signals:
+            # V22.1: Convert TradingSymbol to string for JSON serialization
+            symbol_str = s.symbol.to_short() if isinstance(s.symbol, TradingSymbol) else str(s.symbol)
+            
             signals.append({
                 "timestamp": s.timestamp.strftime('%H:%M:%S'),
-                "symbol": s.symbol,
+                "symbol": symbol_str,  # ✅ JSON-safe string
                 "signal": s.signal_type,
                 "price": s.price,
                 "reason": s.reason,
@@ -151,8 +164,14 @@ def get_market_regimes():
         
         for symbol_raw in active_symbols_raw:
             try:
-                # V21.3: Parse to TradingSymbol
-                symbol = TradingSymbol.from_str(symbol_raw)
+                # V22.1: Handle both strings and TradingSymbol objects
+                if isinstance(symbol_raw, TradingSymbol):
+                    symbol = symbol_raw  # ✅ Already a TradingSymbol object
+                elif isinstance(symbol_raw, str):
+                    symbol = TradingSymbol.from_str(symbol_raw)  # Parse string
+                else:
+                    logger.error(f"❌ Invalid symbol type: {type(symbol_raw)}")
+                    continue
                 
                 # Leer régimen desde Redis
                 key = symbol.to_redis_key("market_regime")  # "market_regime:BTC"
@@ -242,9 +261,14 @@ def pairs_data_api():
     session = SessionLocal()
     try:
         signals = session.query(PairsSignal).order_by(PairsSignal.timestamp.desc()).limit(20).all()
+        
+        # V22.1: Convert TradingSymbol to string for JSON serialization
+        def to_str(symbol):
+            return symbol.to_short() if isinstance(symbol, TradingSymbol) else str(symbol)
+        
         data = [{
             "timestamp": s.timestamp.strftime('%H:%M:%S'),
-            "symbol": f"{s.asset_a}-{s.asset_b}",
+            "symbol": f"{to_str(s.asset_a)}-{to_str(s.asset_b)}",  # ✅ JSON-safe string
             "signal": s.signal,
             "correlation": round(s.correlation, 2),
             "z_score": round(s.z_score, 2),
