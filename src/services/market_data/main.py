@@ -14,6 +14,7 @@ from websockets import connect
 from aiohttp import web
 from src.shared.memory import memory # <--- NEW SHARED CLIENT
 from src.shared.utils import get_logger, normalize_symbol
+from src.config.symbols import DEFAULT_SYMBOLS_LOWER, ACTIVE_SYMBOLS
 
 # --- IMPORTACIÓN DEL NUEVO CEREBRO FINANCIERO ---
 from analyzer.selection_logic import MarketSelector
@@ -22,8 +23,8 @@ from analyzer.selection_logic import MarketSelector
 logger = get_logger("MarketDataHub")
 
 # --- CONFIGURACIÓN DINÁMICA ---
-# Lista inicial por defecto (backup si falla el análisis)
-DEFAULT_SYMBOLS = ['btcusdt', 'ethusdt', 'bnbusdt', 'solusdt', 'xrpusdt']
+# V21.2.1: Usar canonical source (eliminando magic strings)
+DEFAULT_SYMBOLS = DEFAULT_SYMBOLS_LOWER  # ['btcusdt', 'ethusdt', ...]
 current_symbols = DEFAULT_SYMBOLS.copy()
 
 MARKET_SCAN_INTERVAL = 3600  # Escanear el mercado cada 1 hora (3600s)
@@ -172,8 +173,8 @@ async def ohlcv_update_cycle():
                     # 2. Publicar en Redis Pub/Sub para Brain
                     memory.publish('market_data', kline_data)
                     
-                    # 3. Cache en Redis para Dashboard (mantener compatibilidad)
-                    memory.set(f"price:{kline_data['symbol']}", kline_data)
+                    # 3. Cache en Redis para Dashboard (V21.2.1: con TTL de 5 minutos)
+                    memory.set(f"price:{kline_data['symbol']}", kline_data, ttl=300)
                     
                     logger.info(f"📊 OHLCV: {kline_data['symbol']} | O:{kline_data['open']:.2f} H:{kline_data['high']:.2f} L:{kline_data['low']:.2f} C:{kline_data['close']:.2f}")
                 else:

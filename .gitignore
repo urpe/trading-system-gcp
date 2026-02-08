@@ -41,9 +41,7 @@ appendonly.aof
 # SQLite Databases (NO subir DB local de desarrollo)
 *.db
 *.sqlite
-*.sqlite3
-
-# Backups & Temporary Files
+*.sqlite3# Backups & Temporary Files
 backups/
 tmp/
 *.tmp

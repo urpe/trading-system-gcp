@@ -17,6 +17,7 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Dict, Optional, List
 from src.config.settings import config
+from src.config.symbols import ACTIVE_SYMBOLS, FALLBACK_SYMBOLS
 from src.shared.utils import get_logger, normalize_symbol, fetch_binance_klines
 from src.shared.memory import memory
 from src.services.brain.strategies import AVAILABLE_STRATEGIES
@@ -412,9 +413,9 @@ class RegimeSwitchingBrain:
                 # Normalizar símbolos (pueden venir como "btcusdt" o ["btcusdt", "ethusdt"])
                 active_symbols = [normalize_symbol(s, format='short') for s in active_symbols_raw]
             else:
-                # Fallback a símbolos por defecto
-                logger.warning("⚠️ No se encontraron active_symbols en Redis, usando default")
-                active_symbols = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP']
+                # V21.2.1: Usar canonical source (NO magic strings)
+                logger.warning("⚠️ No se encontraron active_symbols en Redis, usando canonical default")
+                active_symbols = FALLBACK_SYMBOLS
             
             # Ejecutar warm-up (descarga 200 velas por símbolo)
             self.warm_up_history(active_symbols)

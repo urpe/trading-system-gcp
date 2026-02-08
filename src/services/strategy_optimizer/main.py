@@ -16,7 +16,8 @@ import logging
 from datetime import datetime
 from typing import Dict, List
 from src.shared.memory import memory
-from src.shared.utils import get_logger
+from src.shared.utils import get_logger, normalize_symbol
+from src.config.symbols import ACTIVE_SYMBOLS, FALLBACK_SYMBOLS
 from src.services.brain.strategies import AVAILABLE_STRATEGIES
 from src.services.brain.strategies.optimizer import TournamentOptimizer
 from src.services.strategy_optimizer.rolling_validator import RollingValidator
@@ -55,35 +56,45 @@ class StrategyOptimizerWorker:
     
     def get_active_symbols(self) -> List[str]:
         """
-        Obtiene lista de símbolos activos desde Redis.
+        V21.2.1: Obtiene lista de símbolos activos desde Redis con normalización.
         Key: active_symbols
         """
         try:
             symbols_json = self.redis_client.lrange('active_symbols', 0, -1)
             if not symbols_json:
-                logger.warning("⚠️ No hay símbolos activos, usando default")
-                return ['BTC', 'ETH', 'BNB', 'SOL', 'XRP']
+                logger.warning("⚠️ No hay símbolos activos, usando canonical fallback")
+                return FALLBACK_SYMBOLS  # V21.2.1: Canonical source
             
-            symbols = [s.decode('utf-8') if isinstance(s, bytes) else s for s in symbols_json]
-            logger.info(f"📊 Símbolos activos: {symbols}")
-            return symbols
+            symbols_raw = [s.decode('utf-8') if isinstance(s, bytes) else s for s in symbols_json]
+            
+            # V21.2.1: NORMALIZACIÓN - Asegurar formato corto consistente
+            try:
+                symbols = [normalize_symbol(s, format='short') for s in symbols_raw]
+                logger.info(f"📊 Símbolos activos (normalizados): {symbols}")
+                return symbols
+            except (ValueError, TypeError) as e:
+                logger.warning(f"⚠️ Error normalizando símbolos: {e}")
+                return FALLBACK_SYMBOLS  # V21.2.1: Canonical source
             
         except Exception as e:
             logger.error(f"Error obteniendo símbolos: {e}")
-            return ['BTC', 'ETH', 'BNB', 'SOL', 'XRP']
+            return FALLBACK_SYMBOLS  # V21.2.1: Canonical source
     
     def fetch_historical_data(self, symbol: str) -> List[float]:
         """
-        Descarga datos históricos de Binance para backtesting.
+        V21.2.1: Descarga datos históricos de Binance para backtesting con normalización.
         
         Returns:
             Lista de precios de cierre [más antiguo -> más reciente]
         """
         try:
+            # V21.2.1: NORMALIZACIÓN
+            symbol_normalized = normalize_symbol(symbol, format='long')  # "BTCUSDT"
+            
             logger.info(f"📥 Descargando {HISTORICAL_CANDLES} velas para {symbol}...")
             
             params = {
-                'symbol': f'{symbol}USDT',
+                'symbol': symbol_normalized,  # V21.2.1: Usar símbolo normalizado
                 'interval': '1h',
                 'limit': HISTORICAL_CANDLES
             }

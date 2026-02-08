@@ -3,12 +3,12 @@ import requests
 import logging
 from flask import Flask, jsonify, request
 from datetime import datetime, timedelta
+from src.shared.utils import get_logger, normalize_symbol
 
 app = Flask(__name__)
 
 # Configuración
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('HistoricalDataSvc')
+logger = get_logger('HistoricalDataSvc')
 
 # ============================================================
 # SERVICIO DE DATOS HISTÓRICOS V17
@@ -50,11 +50,18 @@ def load_historical(symbol):
     days = int(request.args.get('days', 30))
     interval = request.args.get('interval', '1h')
     
-    symbol_pair = f"{symbol.upper()}USDT"
+    # V21.2.1: NORMALIZACIÓN - Usar función compartida
+    try:
+        symbol_normalized = normalize_symbol(symbol, format='short')  # "BTC"
+        symbol_pair = normalize_symbol(symbol, format='long')  # "BTCUSDT"
+    except (ValueError, TypeError) as e:
+        logger.error(f"❌ Invalid symbol '{symbol}': {e}")
+        return jsonify({"error": f"Invalid symbol: {symbol}"}), 400
+    
     end_time = int(datetime.now().timestamp() * 1000)
     start_time = int((datetime.now() - timedelta(days=days)).timestamp() * 1000)
     
-    logger.info(f"📊 Fetching {symbol} historical data: {days}d, interval={interval}")
+    logger.info(f"📊 Fetching {symbol_normalized} historical data: {days}d, interval={interval}")
     
     all_data = []
     current_start = start_time
@@ -91,11 +98,11 @@ def load_historical(symbol):
             
             current_start = klines[-1][6] + 1
         
-        logger.info(f"✅ Loaded {len(all_data)} candles for {symbol}")
+        logger.info(f"✅ Loaded {len(all_data)} candles for {symbol_normalized}")
         
         return jsonify({
             "status": "success",
-            "symbol": symbol.upper(),
+            "symbol": symbol_normalized,  # V21.2.1: Formato normalizado
             "interval": interval,
             "candles_loaded": len(all_data),
             "date_range": f"{datetime.fromtimestamp(start_time/1000)} to {datetime.fromtimestamp(end_time/1000)}",
@@ -119,8 +126,15 @@ def get_historical(symbol):
     
     logger.info(f"📊 Fetching {symbol} data: interval={interval}, limit={limit}")
     
+    # V21.2.1: NORMALIZACIÓN - Usar función compartida
     try:
-        symbol_pair = f"{symbol.upper()}USDT"
+        symbol_normalized = normalize_symbol(symbol, format='short')  # "BTC"
+        symbol_pair = normalize_symbol(symbol, format='long')  # "BTCUSDT"
+    except (ValueError, TypeError) as e:
+        logger.error(f"❌ Invalid symbol '{symbol}': {e}")
+        return jsonify({"error": f"Invalid symbol: {symbol}"}), 400
+    
+    try:
         params = {
             'symbol': symbol_pair,
             'interval': interval,
@@ -146,11 +160,11 @@ def get_historical(symbol):
                 'close_time': k[6]
             })
         
-        logger.info(f"✅ Returned {len(data)} candles for {symbol}")
+        logger.info(f"✅ Returned {len(data)} candles for {symbol_normalized}")
         
         return jsonify({
             "status": "success",
-            "symbol": symbol.upper(),
+            "symbol": symbol_normalized,  # V21.2.1: Formato normalizado
             "interval": interval,
             "count": len(data),
             "data": data

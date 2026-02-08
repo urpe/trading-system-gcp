@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request, send_file
 from src.config.settings import config
+from src.config.symbols import FALLBACK_SYMBOLS, DEFAULT_SYMBOLS_LOWER
 from src.shared.utils import get_logger, normalize_symbol
 from src.shared.memory import memory # Redis Client
 from src.shared.database import SessionLocal, Signal, Trade, Wallet, PairsSignal # Local DB
@@ -52,14 +53,18 @@ def get_realtime_price(symbol):
         return 0
 
 def get_active_symbols():
-    """Fetch Top 5 Monitored Symbols from Redis."""
+    """
+    V21.2.1: Fetch Top 5 Monitored Symbols from Redis con fallback a canonical source.
+    """
     try:
         data = memory.get("active_symbols")
         if data and isinstance(data, list):
             return data
     except Exception as e:
         logger.error(f"Redis Error get_active_symbols: {e}")
-    return ['btcusdt', 'ethusdt', 'solusdt', 'bnbusdt', 'xrpusdt']
+    
+    # V21.2.1: Usar canonical source (NO magic strings)
+    return DEFAULT_SYMBOLS_LOWER
 
 def get_wallet_data():
     """Fetch wallet data from Local DB (SQLite)."""
@@ -125,7 +130,10 @@ def get_signals_history(limit=20):
     return signals
 
 def get_active_assets():
-    return ["BTC", "ETH", "BNB", "SOL", "XRP"]
+    """
+    V21.2.1: Retorna símbolos activos en formato corto desde canonical source.
+    """
+    return ACTIVE_SYMBOLS  # V21.2.1: Canonical source
 
 def get_market_regimes():
     """

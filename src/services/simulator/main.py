@@ -5,19 +5,28 @@ import pandas_ta as ta
 import requests
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
+from src.shared.utils import get_logger, normalize_symbol
 
 # Configuración
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("Simulator")
+logger = get_logger("SimulatorV21.2.1")
 app = Flask(__name__)
 
 # Binance API URL
 BINANCE_API_URL = "https://api.binance.com/api/v3/klines"
 
 def fetch_binance_data(symbol, interval, start_str=None):
-    """Obtiene datos históricos de Binance API"""
+    """
+    V21.2.1: Obtiene datos históricos de Binance API con normalización.
+    """
+    # V21.2.1: NORMALIZACIÓN
+    try:
+        symbol_normalized = normalize_symbol(symbol, format='long')  # "BTCUSDT"
+    except (ValueError, TypeError) as e:
+        logger.error(f"❌ Invalid symbol '{symbol}': {e}")
+        return []
+    
     params = {
-        'symbol': f"{symbol}USDT",
+        'symbol': symbol_normalized,  # V21.2.1: Usar símbolo normalizado
         'interval': interval,
         'limit': 1000
     }
