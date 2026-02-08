@@ -1,13 +1,27 @@
-# V22 "REAL-TIME CORE" - ROADMAP
+# V22 "DATA INTEGRITY + REAL-TIME" - ROADMAP (REFINED)
 
-**Fecha Planificación:** 2026-02-08  
-**Versión Objetivo:** V22  
+**Fecha Planificación:** 2026-02-08 (Actualizado con feedback Gemini)  
+**Versión Objetivo:** V22 (Dividido en V22.1 + V22.2)  
 **Fundamento:** V21.3 (Canonical Core - 100% Complete)  
-**Enfoque:** WebSockets + SQLAlchemy Custom Types + Multi-Quote Support
+**Enfoque:** Backend First (V22.1) → Frontend Second (V22.2)
 
 ---
 
-## 🎯 OBJETIVOS V22
+## ⚠️ CAMBIOS IMPORTANTES (Feedback Gemini)
+
+### **ANTES (Original):**
+- V22 mezclaba: WebSockets + SQLAlchemy + Multi-Quote (todo junto)
+- Riesgo: "Big Bang" deployment, difícil debug si falla
+
+### **DESPUÉS (Refinado):**
+- **V22.1 "Data Integrity Core":** SQLAlchemy + Multi-Quote (Backend puro)
+- **V22.2 "Real-Time Experience":** WebSockets + Frontend (UI)
+
+**Razón:** Separar cambios de infraestructura de datos (críticos) de cambios de UI (visuales). Si algo falla, sabemos exactamente dónde.
+
+---
+
+## 🎯 OBJETIVOS V22.1 + V22.2
 
 ### **1. Real-Time Dashboard (WebSockets)**
 **Problema Actual (V21.3):**
@@ -62,12 +76,43 @@
 
 ---
 
+## 📋 DIVISIÓN ESTRATÉGICA: V22.1 vs V22.2
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  V22.1 "DATA INTEGRITY CORE" (5 días)                           │
+│  🎯 SQLAlchemy Custom Types + Multi-Quote + Symbol Registry     │
+│                                                                  │
+│  ✅ Backend puro (no UI changes)                                │
+│  ✅ Type safety en Database                                     │
+│  ✅ Preparación para escalabilidad                              │
+└─────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼ (Solo si V22.1 es 100% estable)
+                           │
+┌─────────────────────────────────────────────────────────────────┐
+│  V22.2 "REAL-TIME EXPERIENCE" (4 días)                          │
+│  🎯 WebSockets + Frontend Reactivo                              │
+│                                                                  │
+│  ✅ UI improvements                                             │
+│  ✅ Real-time updates (< 100ms)                                 │
+│  ✅ Performance optimizations                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**IMPORTANTE:** V22.2 NO comienza hasta que V22.1 esté 100% estable en producción (3-7 días de burn-in).
+
+---
+
 ## 📋 FASES DE IMPLEMENTACIÓN
 
-### **Fase 1: WebSocket Infrastructure (30% effort)**
+### **═══════════════════════════════════════════**
+### **V22.1 "DATA INTEGRITY CORE"**
+### **═══════════════════════════════════════════**
 
-#### **1.1: Backend (Flask-SocketIO)**
-**Archivo:** `src/services/dashboard/websocket_server.py` (NUEVO)
+### **Fase 1.1: SQLAlchemy Custom Type (2 días)**
+
+**Archivo:** `src/shared/database_types.py` (NUEVO)
 
 ```python
 from flask_socketio import SocketIO, emit
