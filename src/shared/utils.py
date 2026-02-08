@@ -4,6 +4,7 @@ import time
 import random
 import requests
 from src.config.settings import config
+from src.domain import TradingSymbol  # V21.3: Use Value Object
 
 def get_logger(service_name: str) -> logging.Logger:
     """Genera un logger estandarizado para todo el sistema"""
@@ -18,9 +19,17 @@ def get_logger(service_name: str) -> logging.Logger:
 
 def normalize_symbol(symbol: str, format: str = 'short') -> str:
     """
-    V21.2.1: NORMALIZACIÓN UNIFICADA DE SÍMBOLOS (Integrity Hardening)
-    ==================================================================
-    Soluciona el problema de inconsistencias entre servicios (BTC vs BTCUSDT).
+    V21.3: NORMALIZACIÓN UNIFICADA DE SÍMBOLOS (Canonical Core)
+    ============================================================
+    Usa TradingSymbol Value Object internamente para garantizar type safety.
+    
+    DEPRECATION NOTICE: 
+    Esta función existe para backward compatibility.
+    Código nuevo debe usar TradingSymbol directamente:
+    
+        from src.domain import TradingSymbol
+        symbol = TradingSymbol.from_str("BTC")
+        key = symbol.to_redis_key("price")  # "price:BTC"
     
     Args:
         symbol: El símbolo a normalizar (puede venir como "BTC", "btc", "BTCUSDT", "btcusdt")
@@ -31,7 +40,7 @@ def normalize_symbol(symbol: str, format: str = 'short') -> str:
     
     Raises:
         TypeError: Si symbol no es un string
-        ValueError: Si symbol está vacío o es inválido después de normalizar
+        ValueError: Si symbol está vacío o es inválido
     
     Ejemplos:
         normalize_symbol("btcusdt")           -> "BTC"
@@ -45,34 +54,15 @@ def normalize_symbol(symbol: str, format: str = 'short') -> str:
     - Leer claves desde Redis
     - Consultar APIs externas (Binance)
     """
-    # V21.2.1: Validación de tipo (evita AttributeError en .strip())
-    if symbol is None:
-        raise TypeError("Symbol cannot be None (expected str)")
+    # V21.3: Delegate to TradingSymbol Value Object
+    ts = TradingSymbol.from_str(symbol)
     
-    if not isinstance(symbol, str):
-        raise TypeError(f"Symbol must be str, not {type(symbol).__name__}")
-    
-    # V21.2: Validación de contenido
-    if not symbol:
-        raise ValueError("Symbol cannot be empty")
-    
-    # Paso 1: Normalizar a uppercase y remover espacios
-    clean = symbol.strip().upper()
-    
-    # Paso 2: Remover "USDT" si existe (para obtener base)
-    base = clean.replace('USDT', '')
-    
-    # Paso 3: Validar que no esté vacío después de limpiar
-    if not base:
-        raise ValueError(f"Invalid symbol after normalization: {symbol}")
-    
-    # Paso 4: Aplicar formato solicitado
     if format == 'short':
-        return base  # "BTC"
+        return ts.to_short()
     elif format == 'long':
-        return f"{base}USDT"  # "BTCUSDT"
+        return ts.to_long()
     elif format == 'lower':
-        return f"{base.lower()}usdt"  # "btcusdt"
+        return ts.to_lower()
     else:
         raise ValueError(f"Invalid format: {format}. Use 'short', 'long', or 'lower'")
 

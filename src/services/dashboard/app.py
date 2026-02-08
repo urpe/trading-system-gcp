@@ -1,7 +1,8 @@
 from flask import Flask, render_template, jsonify, request, send_file
 from src.config.settings import config
-from src.config.symbols import FALLBACK_SYMBOLS, DEFAULT_SYMBOLS_LOWER
-from src.shared.utils import get_logger, normalize_symbol
+from src.config.symbols import ACTIVE_SYMBOLS, FALLBACK_SYMBOLS, DEFAULT_SYMBOLS_LOWER
+from src.shared.utils import get_logger, normalize_symbol  # Keep for backward compat
+from src.domain import TradingSymbol, parse_symbol_list  # V21.3: Value Object
 from src.shared.memory import memory # Redis Client
 from src.shared.database import SessionLocal, Signal, Trade, Wallet, PairsSignal # Local DB
 import requests
@@ -10,25 +11,25 @@ from datetime import datetime, timedelta
 from openpyxl import Workbook
 from io import BytesIO
 
-logger = get_logger("DashboardV21.2")
+logger = get_logger("DashboardV21.3")
 app = Flask(__name__)
 
 # --- Helper Functions ---
 
-def get_realtime_price(symbol):
+def get_realtime_price(symbol_str):
     """
-    V21.2: Fetch realtime price from Redis con normalización y logging mejorado.
+    V21.3: Fetch realtime price from Redis usando TradingSymbol Value Object.
     
     Args:
-        symbol: Símbolo (se normalizará automáticamente)
+        symbol_str: Símbolo en cualquier formato (será parseado a TradingSymbol)
     
     Returns:
         float: Precio actual o 0 si no se encuentra
     """
     try:
-        # V21.2: Normalizar símbolo antes de buscar en Redis
-        symbol_normalized = normalize_symbol(symbol, format='short')
-        key = f"price:{symbol_normalized}"
+        # V21.3: Parse to TradingSymbol (validates automatically)
+        symbol = TradingSymbol.from_str(symbol_str)
+        key = symbol.to_redis_key("price")  # "price:BTC"
         
         data = memory.get(key)
         
@@ -45,11 +46,11 @@ def get_realtime_price(symbol):
             logger.warning(f"⚠️ Dashboard Key Miss: '{key}' not found in Redis or not a dict (type: {type(data)})")
             return 0
     
-    except ValueError as e:
-        logger.error(f"❌ Error normalizando símbolo '{symbol}': {e}")
+    except (ValueError, TypeError) as e:
+        logger.error(f"❌ Invalid symbol '{symbol_str}': {e}")
         return 0
     except Exception as e:
-        logger.error(f"❌ Redis Error get_realtime_price({symbol}): {e}")
+        logger.error(f"❌ Redis Error get_realtime_price({symbol_str}): {e}")
         return 0
 
 def get_active_symbols():
@@ -137,10 +138,10 @@ def get_active_assets():
 
 def get_market_regimes():
     """
-    V21.2: Obtiene los regímenes de mercado desde Redis con normalización.
+    V21.3: Obtiene los regímenes de mercado desde Redis usando TradingSymbol.
     
     Returns:
-        Dict con regímenes por símbolo activo normalizado
+        Dict con regímenes por símbolo activo
     """
     regimes = {}
     
@@ -150,17 +151,17 @@ def get_market_regimes():
         
         for symbol_raw in active_symbols_raw:
             try:
-                # V21.2: Normalizar símbolo
-                symbol_normalized = normalize_symbol(symbol_raw, format='short')
+                # V21.3: Parse to TradingSymbol
+                symbol = TradingSymbol.from_str(symbol_raw)
                 
                 # Leer régimen desde Redis
-                key = f"market_regime:{symbol_normalized}"
+                key = symbol.to_redis_key("market_regime")  # "market_regime:BTC"
                 regime_json = memory.get_client().get(key)
                 
                 if regime_json:
                     regime_data = json.loads(regime_json)
                     
-                    regimes[symbol_normalized] = {
+                    regimes[symbol.to_short()] = {
                         'regime': regime_data.get('regime', 'unknown'),
                         'adx': regime_data.get('indicators', {}).get('adx', 0),
                         'ema_200': regime_data.get('indicators', {}).get('ema_200', 0),
@@ -169,8 +170,8 @@ def get_market_regimes():
                     }
                 else:
                     # V21.2: Log explícito de key miss
-                    logger.warning(f"⚠️ Dashboard: Régimen no encontrado para {symbol_normalized} (key: {key})")
-                    regimes[symbol_normalized] = {
+                    logger.warning(f"⚠️ Dashboard: Régimen no encontrado para {symbol} (key: {key})")
+                    regimes[symbol.to_short()] = {
                         'regime': 'no_data',
                         'adx': 0,
                         'ema_200': 0,
@@ -178,8 +179,8 @@ def get_market_regimes():
                         'timestamp': ''
                     }
             
-            except ValueError as e:
-                logger.error(f"❌ Error normalizando símbolo '{symbol_raw}': {e}")
+            except (ValueError, TypeError) as e:
+                logger.error(f"❌ Invalid symbol '{symbol_raw}': {e}")
                 continue
         
     except Exception as e:
