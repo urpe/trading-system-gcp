@@ -60,52 +60,52 @@ class RegimeSwitchingBrain:
         logger.info(f"📊 {len(AVAILABLE_STRATEGIES)} estrategias disponibles")
         logger.info(f"⏳ Cooldown: {self.cooldown_minutes} minutos por símbolo")
     
-    def warm_up_history(self, symbols: List[str]):
+    def warm_up_history(self, symbols: List[TradingSymbol]):
         """
-        V21.2: INSTANT WARM-UP SYSTEM
-        ==============================
+        V21.3: INSTANT WARM-UP SYSTEM (Value Object Pattern)
+        =====================================================
         Soluciona el "Cold Start Blindness": Descarga las últimas 200 velas de Binance
         al iniciar el sistema, eliminando la espera de 3.3 horas.
         
         Args:
-            symbols: Lista de símbolos a pre-cargar (ej: ["BTC", "ETH", "SOL"])
+            symbols: Lista de TradingSymbol a pre-cargar (type-safe)
         
         Tiempo estimado: 5-10 segundos (vs 3.3 horas del sistema anterior)
         """
         logger.info("=" * 80)
         logger.info("🔥 WARM-UP SYSTEM ACTIVADO: Descargando historial inicial...")
-        logger.info(f"   Símbolos: {symbols}")
+        logger.info(f"   Símbolos: {[str(s) for s in symbols]}")
         logger.info(f"   Objetivo: {self.max_history_size} velas por símbolo (1m interval)")
         logger.info("=" * 80)
         
         for symbol in symbols:
             try:
-                # Normalizar símbolo (puede venir como "btcusdt" o "BTC")
-                symbol_normalized = normalize_symbol(symbol, format='short')
-                
-                logger.info(f"📥 Warm-up: {symbol_normalized}...")
+                logger.info(f"📥 Warm-up: {symbol}...")  # Usa __str__() automáticamente
                 
                 # Descargar últimas 200 velas de 1m
-                klines = fetch_binance_klines(symbol_normalized, interval='1m', limit=self.max_history_size)
+                klines = fetch_binance_klines(symbol.to_short(), interval='1m', limit=self.max_history_size)
                 
                 if not klines:
-                    logger.warning(f"⚠️ No se pudo descargar historial para {symbol_normalized}")
+                    logger.warning(f"⚠️ No se pudo descargar historial para {symbol}")
                     continue
                 
+                # Key para storage interno (usa formato corto)
+                symbol_key = symbol.to_short()
+                
                 # Inicializar deques
-                if symbol_normalized not in self.price_history:
-                    self.price_history[symbol_normalized] = deque(maxlen=self.max_history_size)
-                    self.high_history[symbol_normalized] = deque(maxlen=self.max_history_size)
-                    self.low_history[symbol_normalized] = deque(maxlen=self.max_history_size)
+                if symbol_key not in self.price_history:
+                    self.price_history[symbol_key] = deque(maxlen=self.max_history_size)
+                    self.high_history[symbol_key] = deque(maxlen=self.max_history_size)
+                    self.low_history[symbol_key] = deque(maxlen=self.max_history_size)
                 
                 # Llenar historial con datos descargados
                 for kline in klines:
-                    self.price_history[symbol_normalized].append(kline['close'])
-                    self.high_history[symbol_normalized].append(kline['high'])
-                    self.low_history[symbol_normalized].append(kline['low'])
+                    self.price_history[symbol_key].append(kline['close'])
+                    self.high_history[symbol_key].append(kline['high'])
+                    self.low_history[symbol_key].append(kline['low'])
                 
                 # Detectar régimen inmediatamente
-                regime = self.detect_market_regime(symbol_normalized)
+                regime = self.detect_market_regime(symbol_key)
                 regime_emoji = {
                     'bull_trend': '📈',
                     'bear_trend': '📉',
@@ -114,7 +114,7 @@ class RegimeSwitchingBrain:
                     'unknown': '❓'
                 }.get(regime.value if regime else 'unknown', '❓')
                 
-                logger.info(f"✅ {symbol_normalized}: {len(self.price_history[symbol_normalized])} velas cargadas | "
+                logger.info(f"✅ {symbol}: {len(self.price_history[symbol_key])} velas cargadas | "
                            f"Régimen: {regime_emoji} {regime.value if regime else 'unknown'} | "
                            f"Último precio: ${klines[-1]['close']:.2f}")
                 
@@ -126,9 +126,12 @@ class RegimeSwitchingBrain:
         logger.info("   ⚡ Sistema operativo en <10 segundos (vs 3.3 horas anterior)")
         logger.info("=" * 80)
     
-    def load_strategy_for_symbol(self, symbol: str) -> Optional[StrategyInterface]:
+    def load_strategy_for_symbol(self, symbol_key: str) -> Optional[StrategyInterface]:
         """
-        Carga la estrategia óptima para un símbolo desde Redis.
+        V21.3: Carga la estrategia óptima para un símbolo desde Redis.
+        
+        Args:
+            symbol_key: Symbol key en formato corto (ej: "BTC")
         
         Redis Key: strategy_config:{symbol}
         Value: {
@@ -138,11 +141,11 @@ class RegimeSwitchingBrain:
         }
         """
         try:
-            key = f"strategy_config:{symbol}"
+            key = f"strategy_config:{symbol_key}"
             config_json = self.redis_client.get(key)
             
             if not config_json:
-                logger.warning(f"⚠️ No hay configuración para {symbol}, usando RSI por defecto")
+                logger.warning(f"⚠️ No hay configuración para {symbol_key}, usando RSI por defecto")
                 # Estrategia por defecto
                 return AVAILABLE_STRATEGIES['RsiMeanReversion']({
                     'period': 14,
@@ -157,14 +160,14 @@ class RegimeSwitchingBrain:
             # Buscar clase de estrategia
             if strategy_name in AVAILABLE_STRATEGIES:
                 strategy = AVAILABLE_STRATEGIES[strategy_name](params)
-                logger.info(f"✅ Cargada estrategia para {symbol}: {strategy}")
+                logger.info(f"✅ Cargada estrategia para {symbol_key}: {strategy}")
                 return strategy
             
             logger.error(f"❌ Estrategia desconocida: {strategy_name}")
             return None
             
         except Exception as e:
-            logger.error(f"Error cargando estrategia para {symbol}: {e}")
+            logger.error(f"Error cargando estrategia para {symbol_key}: {e}")
             return None
     
     def update_ohlcv_history(self, symbol: str, ohlcv_data: dict):
@@ -243,7 +246,7 @@ class RegimeSwitchingBrain:
     
     def process_market_update(self, message):
         """
-        V21.2: Procesa actualización OHLCV con normalización de símbolos.
+        V21.3: Procesa actualización OHLCV usando TradingSymbol (type-safe).
         """
         try:
             data = json.loads(message['data'])
@@ -257,12 +260,14 @@ class RegimeSwitchingBrain:
             for coin_data in coin_list:
                 symbol_raw = coin_data.get('symbol')
                 
-                # V21.2: NORMALIZACIÓN CRÍTICA - Asegurar formato consistente
+                # V21.3: Parse to TradingSymbol (validates automatically)
                 try:
-                    symbol = normalize_symbol(symbol_raw, format='short')
-                except ValueError as e:
-                    logger.error(f"❌ Error normalizando símbolo '{symbol_raw}': {e}")
+                    symbol = TradingSymbol.from_str(symbol_raw)
+                except (ValueError, TypeError) as e:
+                    logger.error(f"❌ Invalid symbol '{symbol_raw}': {e}")
                     continue
+                
+                symbol_key = symbol.to_short()  # "BTC" para storage interno
                 
                 # V21: Validar estructura OHLCV
                 required_keys = ['open', 'high', 'low', 'close']
@@ -275,7 +280,7 @@ class RegimeSwitchingBrain:
                     continue
                 
                 # V21: Actualizar historial OHLCV completo
-                self.update_ohlcv_history(symbol, coin_data)
+                self.update_ohlcv_history(symbol_key, coin_data)
                 
                 # Para compatibilidad con estrategias que usan solo 'price'
                 price = float(coin_data['close'])
@@ -395,9 +400,9 @@ class RegimeSwitchingBrain:
     
     def run(self):
         """
-        V21.2: Loop principal del Brain con Warm-up System.
+        V21.3: Loop principal del Brain con Warm-up System (Value Object Pattern).
         """
-        logger.info("🧠 Brain V21.2 (Synchronized Architecture + Warm-up) Started...")
+        logger.info("🧠 Brain V21.3 (Canonical Core + Value Objects) Started...")
         logger.info(f"   📊 Estrategias: {', '.join(AVAILABLE_STRATEGIES.keys())}")
         logger.info(f"   🎯 Regime Detection: ADX + EMA(200)")
         
@@ -406,19 +411,25 @@ class RegimeSwitchingBrain:
             time.sleep(5)
             return
         
-        # V21.2: WARM-UP SYSTEM - Obtener símbolos activos y pre-cargar historial
+        # V21.3: WARM-UP SYSTEM - Obtener símbolos activos y pre-cargar historial
         try:
             active_symbols_raw = memory.get("active_symbols")
             
             if active_symbols_raw and isinstance(active_symbols_raw, list):
-                # Normalizar símbolos (pueden venir como "btcusdt" o ["btcusdt", "ethusdt"])
-                active_symbols = [normalize_symbol(s, format='short') for s in active_symbols_raw]
+                # V21.3: Parse to List[TradingSymbol] (validates automatically)
+                try:
+                    active_symbols = parse_symbol_list(active_symbols_raw)
+                    logger.info(f"   ✅ Símbolos activos parseados: {[str(s) for s in active_symbols]}")
+                except (ValueError, TypeError) as e:
+                    logger.error(f"❌ Error parsing active_symbols: {e}")
+                    active_symbols = parse_symbol_list(FALLBACK_SYMBOLS)
             else:
                 # V21.2.1: Usar canonical source (NO magic strings)
                 logger.warning("⚠️ No se encontraron active_symbols en Redis, usando canonical default")
-                active_symbols = FALLBACK_SYMBOLS
+                active_symbols = parse_symbol_list(FALLBACK_SYMBOLS)
             
             # Ejecutar warm-up (descarga 200 velas por símbolo)
+            # active_symbols es ahora List[TradingSymbol], no List[str]
             self.warm_up_history(active_symbols)
             
         except Exception as e:

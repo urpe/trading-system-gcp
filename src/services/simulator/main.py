@@ -5,10 +5,11 @@ import pandas_ta as ta
 import requests
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
-from src.shared.utils import get_logger, normalize_symbol
+from src.shared.utils import get_logger, normalize_symbol  # Keep for backward compat
+from src.domain import TradingSymbol  # V21.3: Value Object
 
 # Configuración
-logger = get_logger("SimulatorV21.2.1")
+logger = get_logger("SimulatorV21.3")
 app = Flask(__name__)
 
 # Binance API URL

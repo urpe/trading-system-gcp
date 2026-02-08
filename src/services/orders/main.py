@@ -3,11 +3,12 @@ import json
 import logging
 from datetime import datetime
 from src.config.settings import config
-from src.shared.utils import get_logger, normalize_symbol
+from src.shared.utils import get_logger, normalize_symbol  # Keep for backward compat
+from src.domain import TradingSymbol  # V21.3: Value Object
 from src.shared.memory import memory
 from src.shared.database import init_db, SessionLocal, Trade, Wallet
 
-logger = get_logger("OrdersSvcV21.2")
+logger = get_logger("OrdersSvcV21.3")
 
 # Inicializar Base de Datos
 init_db()
@@ -72,12 +73,12 @@ def get_open_positions_count():
 
 def stop_loss_worker():
     """
-    V21.2: Worker que verifica stop loss cada 30 segundos con normalización.
+    V21.3: Worker que verifica stop loss cada 30 segundos (Value Object Pattern).
     Cierra automáticamente posiciones con pérdida > -2%
     """
     import time
     
-    logger.info("🛡️ Stop Loss Worker V21.2 iniciado (check cada 30s)")
+    logger.info("🛡️ Stop Loss Worker V21.3 (Canonical Core) iniciado (check cada 30s)")
     
     while True:
         try:
@@ -94,15 +95,15 @@ def stop_loss_worker():
                 # Verificar cada posición
                 for trade in open_trades:
                     try:
-                        # V21.2: NORMALIZACIÓN - Asegurar formato consistente con Redis
-                        symbol_normalized = normalize_symbol(trade.symbol, format='short')
-                        current_price_key = f"price:{symbol_normalized}"
+                        # V21.3: Parse to TradingSymbol (validates automatically)
+                        symbol = TradingSymbol.from_str(trade.symbol)
+                        current_price_key = symbol.to_redis_key("price")  # "price:BTC"
                         
                         # Obtener precio actual desde Redis (formato OHLCV)
                         price_data = memory.get(current_price_key)
                         
                         if not price_data:
-                            logger.warning(f"⚠️ Stop Loss: No se encontró precio para {trade.symbol} (key: {current_price_key})")
+                            logger.warning(f"⚠️ Stop Loss: No se encontró precio para {symbol} (key: {current_price_key})")
                             continue
                         
                         # V21.2: Manejar formato OHLCV

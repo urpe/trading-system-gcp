@@ -3,12 +3,13 @@ import requests
 import logging
 from flask import Flask, jsonify, request
 from datetime import datetime, timedelta
-from src.shared.utils import get_logger, normalize_symbol
+from src.shared.utils import get_logger, normalize_symbol  # Keep for backward compat
+from src.domain import TradingSymbol  # V21.3: Value Object
 
 app = Flask(__name__)
 
 # Configuración
-logger = get_logger('HistoricalDataSvc')
+logger = get_logger('HistoricalDataSvcV21.3')
 
 # ============================================================
 # SERVICIO DE DATOS HISTÓRICOS V17

@@ -13,19 +13,20 @@ import aiohttp
 from websockets import connect
 from aiohttp import web
 from src.shared.memory import memory # <--- NEW SHARED CLIENT
-from src.shared.utils import get_logger, normalize_symbol
+from src.shared.utils import get_logger, normalize_symbol  # Keep for backward compat
+from src.domain import TradingSymbol, parse_symbol_list  # V21.3: Value Object
 from src.config.symbols import DEFAULT_SYMBOLS_LOWER, ACTIVE_SYMBOLS
 
 # --- IMPORTACIÓN DEL NUEVO CEREBRO FINANCIERO ---
 from analyzer.selection_logic import MarketSelector
 
 # Configuración de Logs V17
-logger = get_logger("MarketDataHub")
+logger = get_logger("MarketDataHubV21.3")
 
 # --- CONFIGURACIÓN DINÁMICA ---
-# V21.2.1: Usar canonical source (eliminando magic strings)
-DEFAULT_SYMBOLS = DEFAULT_SYMBOLS_LOWER  # ['btcusdt', 'ethusdt', ...]
-current_symbols = DEFAULT_SYMBOLS.copy()
+# V21.3: Parse to TradingSymbol list (type-safe)
+DEFAULT_SYMBOLS_STR = DEFAULT_SYMBOLS_LOWER  # ['btcusdt', 'ethusdt', ...]
+current_symbols = parse_symbol_list(DEFAULT_SYMBOLS_STR)  # List[TradingSymbol]
 
 MARKET_SCAN_INTERVAL = 3600  # Escanear el mercado cada 1 hora (3600s)
 selector = MarketSelector() # Instancia del cerebro
@@ -52,16 +53,16 @@ async def fetch_binance_ticker_24hr():
                 logger.error(f"Error obteniendo tickers de Binance: {response.status}")
                 return {}
 
-async def fetch_latest_kline(symbol: str) -> dict:
+async def fetch_latest_kline(symbol: TradingSymbol) -> dict:
     """
-    V21.2: Obtiene la última vela cerrada de 1 minuto desde Binance con normalización.
+    V21.3: Obtiene la última vela cerrada de 1 minuto desde Binance (Value Object).
     
     Args:
-        symbol: Símbolo (puede venir como "btcusdt", "BTC", o "BTCUSDT")
+        symbol: TradingSymbol (type-safe, ya validado)
     
     Returns:
         {
-            "symbol": "BTC",  # SIEMPRE formato corto normalizado
+            "symbol": "BTC",  # Formato corto consistente
             "timestamp": 1709...,
             "open": 75000.0,
             "high": 75500.0,
@@ -72,16 +73,8 @@ async def fetch_latest_kline(symbol: str) -> dict:
     """
     url = "https://api.binance.com/api/v3/klines"
     
-    # V21.2: NORMALIZACIÓN - Usar función compartida
-    try:
-        symbol_normalized = normalize_symbol(symbol, format='short')  # "BTC"
-        binance_symbol = normalize_symbol(symbol, format='long')     # "BTCUSDT"
-    except ValueError as e:
-        logger.error(f"❌ Error normalizando símbolo '{symbol}': {e}")
-        return None
-    
     params = {
-        "symbol": binance_symbol,
+        "symbol": symbol.to_binance_api(),  # V21.3: Type-safe "BTCUSDT"
         "interval": "1m",
         "limit": 1
     }
@@ -97,7 +90,7 @@ async def fetch_latest_kline(symbol: str) -> dict:
                         
                         # Binance kline format: [OpenTime, Open, High, Low, Close, Volume, ...]
                         return {
-                            "symbol": symbol_normalized,  # CRÍTICO: Formato corto consistente
+                            "symbol": symbol.to_short(),  # V21.3: Type-safe "BTC"
                             "timestamp": int(kline[0]) / 1000,  # Convert to seconds
                             "open": float(kline[1]),
                             "high": float(kline[2]),
@@ -115,33 +108,44 @@ async def fetch_latest_kline(symbol: str) -> dict:
 
 async def update_top_coins():
     """
-    Función periódica que usa el MarketSelector para encontrar las mejores monedas.
+    V21.3: Función periódica que usa el MarketSelector (Value Object Pattern).
     """
     global current_symbols
     logger.info("🕵️‍♂️ Iniciando escaneo de mercado para actualizar Top 5...")
     
     tickers = await fetch_binance_ticker_24hr()
     if tickers:
-        new_top = selector.filter_candidates(tickers)
-        # Convertir a minúsculas para el stream
-        new_top_lower = [s.lower() for s in new_top]
+        new_top = selector.filter_candidates(tickers)  # Retorna ["BTCUSDT", "ETHUSDT", ...]
+        
+        # V21.3: Parse to List[TradingSymbol]
+        try:
+            new_top_symbols = parse_symbol_list(new_top)  # List[TradingSymbol]
+        except (ValueError, TypeError) as e:
+            logger.error(f"❌ Error parsing new top symbols: {e}")
+            return False
+        
+        # Comparar bases (formato corto para comparación)
+        current_bases = {s.to_short() for s in current_symbols}
+        new_bases = {s.to_short() for s in new_top_symbols}
         
         # Si la lista cambió, actualizamos
-        if set(new_top_lower) != set(current_symbols):
-            logger.info(f"🔄 CAMBIO DE ESTRATEGIA: {current_symbols} -> {new_top_lower}")
-            current_symbols = new_top_lower
+        if new_bases != current_bases:
+            logger.info(f"🔄 CAMBIO DE ESTRATEGIA: {[str(s) for s in current_symbols]} -> {[str(s) for s in new_top_symbols]}")
+            current_symbols = new_top_symbols
             
-            # --- V15 ENTERPRISE: Notificar cambio a Redis ---
+            # --- V21.3: Guardar en Redis (formato corto para consistency) ---
             try:
-                memory.set("active_symbols", current_symbols)
-                logger.info(f"💾 Active Symbols guardados en Redis: {current_symbols}")
+                symbols_to_store = [s.to_short() for s in current_symbols]  # ["BTC", "ETH", ...]
+                memory.set("active_symbols", symbols_to_store)
+                logger.info(f"💾 Active Symbols guardados en Redis: {symbols_to_store}")
             except Exception as e:
                 logger.error(f"❌ Error guardando active_symbols: {e}")
                 
-            return True # Indica que hay que reiniciar el stream
+            return True  # Indica que hay que reiniciar el stream
         else:
             # Aunque no cambie, refrescamos el TTL/valor en Redis
-            memory.set("active_symbols", current_symbols)
+            symbols_to_store = [s.to_short() for s in current_symbols]
+            memory.set("active_symbols", symbols_to_store)
             logger.info("✅ El Top 5 se mantiene estable. Sin cambios.")
             return False
     return False
@@ -166,17 +170,18 @@ async def ohlcv_update_cycle():
     while True:
         try:
             # 1. Fetch OHLCV de cada símbolo activo
-            for symbol in current_symbols:
+            for symbol in current_symbols:  # symbol is TradingSymbol
                 kline_data = await fetch_latest_kline(symbol)
                 
                 if kline_data:
                     # 2. Publicar en Redis Pub/Sub para Brain
                     memory.publish('market_data', kline_data)
                     
-                    # 3. Cache en Redis para Dashboard (V21.2.1: con TTL de 5 minutos)
-                    memory.set(f"price:{kline_data['symbol']}", kline_data, ttl=300)
+                    # 3. Cache en Redis para Dashboard (V21.3: usando Value Object)
+                    redis_key = symbol.to_redis_key("price")  # "price:BTC"
+                    memory.set(redis_key, kline_data, ttl=300)
                     
-                    logger.info(f"📊 OHLCV: {kline_data['symbol']} | O:{kline_data['open']:.2f} H:{kline_data['high']:.2f} L:{kline_data['low']:.2f} C:{kline_data['close']:.2f}")
+                    logger.info(f"📊 OHLCV: {symbol} | O:{kline_data['open']:.2f} H:{kline_data['high']:.2f} L:{kline_data['low']:.2f} C:{kline_data['close']:.2f}")
                 else:
                     logger.warning(f"⚠️ No se pudo obtener OHLCV para {symbol}")
             

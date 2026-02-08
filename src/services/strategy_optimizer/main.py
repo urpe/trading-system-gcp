@@ -16,7 +16,8 @@ import logging
 from datetime import datetime
 from typing import Dict, List
 from src.shared.memory import memory
-from src.shared.utils import get_logger, normalize_symbol
+from src.shared.utils import get_logger, normalize_symbol  # Keep for backward compat
+from src.domain import TradingSymbol, parse_symbol_list  # V21.3: Value Object
 from src.config.symbols import ACTIVE_SYMBOLS, FALLBACK_SYMBOLS
 from src.services.brain.strategies import AVAILABLE_STRATEGIES
 from src.services.brain.strategies.optimizer import TournamentOptimizer
