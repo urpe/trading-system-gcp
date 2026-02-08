@@ -33,7 +33,7 @@ Uso:
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Literal, Dict
 
 
 class QuoteCurrency(Enum):
@@ -251,6 +251,27 @@ class TradingSymbol:
         """
         return self.to_long()
     
+    def to_dict(self) -> Dict[str, str]:
+        """
+        Convert to dictionary (useful for JSON serialization).
+        
+        Returns:
+            Dict representation with base, quote, and full symbol
+        
+        Examples:
+            >>> symbol.to_dict()
+            {'base': 'BTC', 'quote': 'USDT', 'full': 'BTCUSDT'}
+            
+            >>> import json
+            >>> json.dumps(symbol.to_dict())
+            '{"base": "BTC", "quote": "USDT", "full": "BTCUSDT"}'
+        """
+        return {
+            'base': self.base,
+            'quote': self.quote.value,
+            'full': self.to_long()
+        }
+    
     # ==========================================================================
     # MÉTODOS ESPECIALES (Dunder Methods)
     # ==========================================================================
@@ -272,6 +293,30 @@ class TradingSymbol:
             "TradingSymbol(base='BTC', quote=QuoteCurrency.USDT)"
         """
         return f"TradingSymbol(base='{self.base}', quote={self.quote})"
+    
+    def __repr_html__(self) -> str:
+        """
+        HTML representation para Jupyter Notebooks.
+        
+        Returns:
+            HTML string con formato visual
+        
+        Examples:
+            En Jupyter Notebook, el símbolo se mostrará con un formato visual:
+            
+            [TradingSymbol]
+            Base: BTC
+            Quote: USDT
+            Full: BTCUSDT
+        """
+        return f'''
+        <div style="padding: 10px; border: 2px solid #2196F3; border-radius: 6px; display: inline-block; font-family: monospace; background-color: #f5f5f5;">
+            <div style="color: #2196F3; font-weight: bold; margin-bottom: 6px; font-size: 14px;">📊 TradingSymbol</div>
+            <div style="margin: 4px 0;"><span style="color: #666; font-weight: bold;">Base:</span> <code style="background: white; padding: 2px 6px; border-radius: 3px; color: #d32f2f;">{self.base}</code></div>
+            <div style="margin: 4px 0;"><span style="color: #666; font-weight: bold;">Quote:</span> <code style="background: white; padding: 2px 6px; border-radius: 3px; color: #388e3c;">{self.quote.value}</code></div>
+            <div style="margin: 4px 0;"><span style="color: #666; font-weight: bold;">Full:</span> <code style="background: white; padding: 2px 6px; border-radius: 3px; color: #1976d2;">{self.to_long()}</code></div>
+        </div>
+        '''
     
     def __hash__(self) -> int:
         """
@@ -311,7 +356,10 @@ class TradingSymbol:
 # HELPER FUNCTIONS (Backward Compatibility)
 # ==========================================================================
 
-def normalize_symbol_v21_3(symbol: str, format: str = 'short') -> str:
+def normalize_symbol_v21_3(
+    symbol: str, 
+    format: Literal['short', 'long', 'lower'] = 'short'
+) -> str:
     """
     V21.3: Wrapper de backward compatibility para normalize_symbol().
     
@@ -320,7 +368,7 @@ def normalize_symbol_v21_3(symbol: str, format: str = 'short') -> str:
     
     Args:
         symbol: String a normalizar
-        format: 'short', 'long', 'lower'
+        format: Literal type - must be 'short', 'long', or 'lower'
     
     Returns:
         String normalizado
