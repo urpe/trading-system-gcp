@@ -285,18 +285,18 @@ class RegimeSwitchingBrain:
                 # Para compatibilidad con estrategias que usan solo 'price'
                 price = float(coin_data['close'])
                 
-                # V19: Detectar régimen de mercado (cada 10 actualizaciones para no sobrecargar)
+                # V21.3.1: FIX KeyError - Usar symbol_key (string) para dict access
                 regime = None
-                if len(self.price_history[symbol]) % 10 == 0:
-                    regime = self.detect_market_regime(symbol)
+                if len(self.price_history[symbol_key]) % 10 == 0:
+                    regime = self.detect_market_regime(symbol_key)
                 else:
-                    regime = self.current_regimes.get(symbol)
+                    regime = self.current_regimes.get(symbol_key)
                 
                 # Cargar estrategia si no existe o recargar periódicamente
-                if symbol not in self.active_strategies or self._should_reload_strategy():
-                    self.active_strategies[symbol] = self.load_strategy_for_symbol(symbol)
+                if symbol_key not in self.active_strategies or self._should_reload_strategy():
+                    self.active_strategies[symbol_key] = self.load_strategy_for_symbol(symbol_key)
                 
-                strategy = self.active_strategies.get(symbol)
+                strategy = self.active_strategies.get(symbol_key)
                 
                 if not strategy:
                     continue
@@ -313,7 +313,7 @@ class RegimeSwitchingBrain:
                         # Continuar pero con advertencia (no bloqueamos)
                 
                 # Verificar si tenemos suficiente historia
-                history = list(self.price_history[symbol])
+                history = list(self.price_history[symbol_key])
                 if len(history) < strategy.get_required_history():
                     continue
                 
@@ -332,7 +332,7 @@ class RegimeSwitchingBrain:
                     
                     # Generar señal de trading
                     signal = {
-                        "symbol": symbol,
+                        "symbol": symbol_key,  # V21.3.1: Fix - use string, not object
                         "type": result.signal,
                         "price": price,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -348,17 +348,18 @@ class RegimeSwitchingBrain:
                     # V19.1: Verificar cooldown antes de publicar señal
                     current_time = datetime.now(timezone.utc)
                     
-                    if symbol in self.last_signal_time:
-                        time_since_last = (current_time - self.last_signal_time[symbol]).total_seconds() / 60
+                    # V21.3.1: Fix KeyError - use symbol_key
+                    if symbol_key in self.last_signal_time:
+                        time_since_last = (current_time - self.last_signal_time[symbol_key]).total_seconds() / 60
                         
                         if time_since_last < self.cooldown_minutes:
                             logger.info(
-                                f"⏳ Cooldown activo para {symbol}: {time_since_last:.1f} < {self.cooldown_minutes} min - Señal rechazada"
+                                f"⏳ Cooldown activo para {symbol_key}: {time_since_last:.1f} < {self.cooldown_minutes} min - Señal rechazada"
                             )
                             continue  # Rechazar señal y continuar con siguiente símbolo
                     
                     # Actualizar timestamp de última señal
-                    self.last_signal_time[symbol] = current_time
+                    self.last_signal_time[symbol_key] = current_time
                     
                     # Publicar en Redis
                     try:
@@ -369,7 +370,7 @@ class RegimeSwitchingBrain:
                         self.redis_client.ltrim('recent_signals', 0, 49)
                         
                         logger.info(
-                            f"🧠 SIGNAL: {result.signal} {symbol} @ ${price:.2f} | "
+                            f"🧠 SIGNAL: {result.signal} {symbol_key} @ ${price:.2f} | "
                             f"Regime: {regime_emoji} {regime.value if regime else 'unknown'} | "
                             f"{strategy.name}{strategy.params} | "
                             f"Conf: {result.confidence:.0%} | {result.reason}"

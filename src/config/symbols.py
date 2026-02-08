@@ -43,6 +43,7 @@ class TradingPair(Enum):
     DOT = "DOT"
     AVAX = "AVAX"
     MATIC = "MATIC"
+    PAXG = "PAXG"  # V21.3.1: Added PAX Gold (fix Dashboard errors)
 
 
 # ============================================================================
