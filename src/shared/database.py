@@ -4,6 +4,9 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
 
+# V22.1: Import custom types for type-safe persistence
+from src.shared.database_types import TradingSymbolType
+
 # Configuración de BD Local
 # Se guardará en el volumen persistente o local
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
@@ -18,7 +21,7 @@ class Signal(Base):
     __tablename__ = 'signals'
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    symbol = Column(String(20), index=True)
+    symbol = Column(TradingSymbolType, index=True)  # V22.1: Type-safe symbol
     signal_type = Column(String(10)) # BUY/SELL
     price = Column(Float)
     reason = Column(String(200))
@@ -29,7 +32,7 @@ class MarketSnapshot(Base):
     __tablename__ = 'market_snapshots'
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    symbol = Column(String(20), index=True)
+    symbol = Column(TradingSymbolType, index=True)  # V22.1: Type-safe symbol
     price = Column(Float)
     volume_24h = Column(Float)
     change_24h = Column(Float)
@@ -38,7 +41,7 @@ class Trade(Base):
     __tablename__ = 'trades'
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    symbol = Column(String(20))
+    symbol = Column(TradingSymbolType)  # V22.1: Type-safe symbol
     side = Column(String(10)) # LONG/SHORT
     amount = Column(Float)
     entry_price = Column(Float)
@@ -57,8 +60,8 @@ class PairsSignal(Base):
     __tablename__ = 'pairs_signals'
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    asset_a = Column(String(10))
-    asset_b = Column(String(10))
+    asset_a = Column(TradingSymbolType)  # V22.1: Type-safe symbol
+    asset_b = Column(TradingSymbolType)  # V22.1: Type-safe symbol
     correlation = Column(Float)
     z_score = Column(Float)
     signal = Column(String(50))  # "LONG A / SHORT B"

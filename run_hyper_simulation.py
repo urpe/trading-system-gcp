@@ -19,8 +19,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 from src.time_machine.data_loader import BinanceHistoricalLoader
 from src.shared.utils import get_logger
+from src.domain import TradingSymbol  # V22.1: Type-safe symbols
 
-logger = get_logger("HyperSimulation")
+logger = get_logger("HyperSimulation.V22.1")
 
 
 def print_header(text: str):
@@ -97,19 +98,21 @@ def calculate_metrics(signals: List[Dict], trades: List[Dict]) -> Dict:
     }
 
 
-def simulate_brain_strategy(klines: List[Dict], symbol: str) -> List[Dict]:
+def simulate_brain_strategy(klines: List[Dict], symbol: TradingSymbol) -> List[Dict]:
     """
     Simulate Brain strategy on historical data.
+    
+    V22.1: Now uses TradingSymbol objects for type safety.
     
     Simplified version: RSI Mean Reversion.
     
     Args:
         klines: Historical OHLCV data
-        symbol: Trading symbol
+        symbol: TradingSymbol object (V22.1: type-safe)
     
     Returns:
         List of signals: [
-            {'symbol': 'BTC', 'type': 'BUY', 'price': 75000, 'timestamp': ...},
+            {'symbol': TradingSymbol(...), 'symbol_str': 'BTC', 'type': 'BUY', ...},
             ...
         ]
     """
@@ -137,10 +140,11 @@ def simulate_brain_strategy(klines: List[Dict], symbol: str) -> List[Dict]:
             rs = avg_gain / avg_loss
             rsi = 100 - (100 / (1 + rs))
         
-        # Generate signals
+        # Generate signals (V22.1: Store TradingSymbol object)
         if rsi < 30:  # Oversold - BUY signal
             signals.append({
-                'symbol': symbol,
+                'symbol': symbol,  # V22.1: TradingSymbol object
+                'symbol_str': symbol.to_short(),  # For display
                 'type': 'BUY',
                 'price': prices[i],
                 'timestamp': klines[i]['timestamp'],
@@ -149,7 +153,8 @@ def simulate_brain_strategy(klines: List[Dict], symbol: str) -> List[Dict]:
             })
         elif rsi > 70:  # Overbought - SELL signal
             signals.append({
-                'symbol': symbol,
+                'symbol': symbol,  # V22.1: TradingSymbol object
+                'symbol_str': symbol.to_short(),  # For display
                 'type': 'SELL',
                 'price': prices[i],
                 'timestamp': klines[i]['timestamp'],
@@ -164,24 +169,29 @@ def simulate_trades(signals: List[Dict], initial_balance: float = 1000.0) -> Lis
     """
     Simulate trade execution from signals.
     
+    V22.1: Now handles TradingSymbol objects correctly.
+    
     Simplified: Open position on signal, close on opposite signal or after 1h.
     
     Args:
-        signals: List of signals
+        signals: List of signals (with TradingSymbol objects)
         initial_balance: Starting USDT balance
     
     Returns:
-        List of trades with PnL
+        List of trades with PnL (includes TradingSymbol objects)
     """
     trades = []
     open_positions = {}
     
     for signal in signals:
-        symbol = signal['symbol']
+        # V22.1: Use symbol object, key by string for dict lookup
+        symbol = signal['symbol']  # TradingSymbol object
+        symbol_key = symbol.to_short()  # "BTC" for dict key
         
-        if signal['type'] == 'BUY' and symbol not in open_positions:
+        if signal['type'] == 'BUY' and symbol_key not in open_positions:
             # Open long position
-            open_positions[symbol] = {
+            open_positions[symbol_key] = {
+                'symbol': symbol,  # V22.1: Store TradingSymbol object
                 'entry_price': signal['price'],
                 'entry_time': signal['timestamp'],
                 'type': 'LONG'
@@ -189,13 +199,14 @@ def simulate_trades(signals: List[Dict], initial_balance: float = 1000.0) -> Lis
         
         elif signal['type'] == 'SELL':
             # Close long if exists, or open short
-            if symbol in open_positions and open_positions[symbol]['type'] == 'LONG':
+            if symbol_key in open_positions and open_positions[symbol_key]['type'] == 'LONG':
                 # Close long
-                position = open_positions[symbol]
+                position = open_positions[symbol_key]
                 pnl = (signal['price'] - position['entry_price']) / position['entry_price'] * 100
                 
                 trades.append({
-                    'symbol': symbol,
+                    'symbol': symbol,  # V22.1: TradingSymbol object
+                    'symbol_str': symbol_key,  # For display/reporting
                     'side': 'LONG',
                     'entry_price': position['entry_price'],
                     'exit_price': signal['price'],
@@ -205,7 +216,7 @@ def simulate_trades(signals: List[Dict], initial_balance: float = 1000.0) -> Lis
                     'pnl': pnl * 10  # Assuming $1000 per trade
                 })
                 
-                del open_positions[symbol]
+                del open_positions[symbol_key]
     
     return trades
 
@@ -267,17 +278,24 @@ def main():
     
     all_signals = []
     
-    for symbol, klines in symbols_data.items():
+    for symbol_str, klines in symbols_data.items():
         if not klines:
-            logger.warning(f"⚠️ No data for {symbol}, skipping")
+            logger.warning(f"⚠️ No data for {symbol_str}, skipping")
             continue
         
-        logger.info(f"   Simulating {symbol} ({len(klines)} candles)...")
+        logger.info(f"   Simulating {symbol_str} ({len(klines)} candles)...")
+        
+        # V22.1: Convert string to TradingSymbol object
+        try:
+            symbol = TradingSymbol.from_str(symbol_str)
+        except ValueError as e:
+            logger.error(f"❌ Invalid symbol '{symbol_str}': {e}")
+            continue
         
         signals = simulate_brain_strategy(klines, symbol)
         all_signals.extend(signals)
         
-        print(f"   {symbol}: {len(signals)} signals generated")
+        print(f"   {symbol_str}: {len(signals)} signals generated")
     
     print(f"✅ Total signals generated: {len(all_signals)}")
     
@@ -377,11 +395,13 @@ def main():
     report_content += "|---|--------|------|-------|------|-------|-------|\n"
     
     for i, trade in enumerate(trades, 1):
-        report_content += f"| {i} | {trade['symbol']} | {trade['side']} | ${trade['entry_price']:.2f} | ${trade['exit_price']:.2f} | {trade['pnl_pct']:.2f}% | ${trade['pnl']:.2f} |\n"
+        # V22.1: Use symbol_str for display
+        symbol_display = trade.get('symbol_str', trade['symbol'].to_short() if hasattr(trade['symbol'], 'to_short') else str(trade['symbol']))
+        report_content += f"| {i} | {symbol_display} | {trade['side']} | ${trade['entry_price']:.2f} | ${trade['exit_price']:.2f} | {trade['pnl_pct']:.2f}% | ${trade['pnl']:.2f} |\n"
     
     report_content += "\n---\n\n"
     report_content += f"**Report Generated:** {datetime.now().isoformat()}  \n"
-    report_content += f"**System Version:** V21.3.1  \n"
+    report_content += f"**System Version:** V22.1 (Type-Safe Persistence)  \n"
     
     # Save report
     with open(args.output, 'w') as f:
@@ -389,8 +409,21 @@ def main():
     
     print(f"✅ Report saved: {args.output}")
     
-    # Also save JSON
+    # Also save JSON (V22.1: Serialize TradingSymbol objects to strings)
     json_output = args.output.replace('.md', '.json')
+    
+    # Convert TradingSymbol objects to strings for JSON serialization
+    def serialize_for_json(obj):
+        """Convert TradingSymbol objects to dicts for JSON."""
+        if isinstance(obj, dict):
+            return {k: serialize_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [serialize_for_json(item) for item in obj]
+        elif isinstance(obj, TradingSymbol):
+            return obj.to_dict()  # Use built-in to_dict() method
+        else:
+            return obj
+    
     with open(json_output, 'w') as f:
         json.dump({
             'config': {
@@ -401,8 +434,8 @@ def main():
                 'symbols': symbols
             },
             'metrics': metrics,
-            'signals': all_signals,
-            'trades': trades
+            'signals': serialize_for_json(all_signals),
+            'trades': serialize_for_json(trades)
         }, f, indent=2)
     
     print(f"✅ JSON data saved: {json_output}")

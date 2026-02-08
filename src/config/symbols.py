@@ -44,6 +44,8 @@ class TradingPair(Enum):
     AVAX = "AVAX"
     MATIC = "MATIC"
     PAXG = "PAXG"  # V21.3.1: Added PAX Gold (fix Dashboard errors)
+    SENT = "SENT"  # V22.1: Sentinel
+    ZAMA = "ZAMA"  # V22.1: Zama
 
 
 # ============================================================================

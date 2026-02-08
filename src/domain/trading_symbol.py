@@ -69,6 +69,8 @@ class TradingPair(Enum):
     LTC = "LTC"
     UNI = "UNI"
     PAXG = "PAXG"  # V21.3.1: PAX Gold
+    SENT = "SENT"  # V22.1: Sentinel
+    ZAMA = "ZAMA"  # V22.1: Zama
     
     @classmethod
     def is_valid(cls, symbol: str) -> bool:
